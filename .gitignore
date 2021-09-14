@@ -1,0 +1,20 @@
+######################################
+# List of ignored files, and exclusion from this list
+
+#  note that the following files will not be ignored
+!*.dll
+!*.exe
+!*.pdf
+!*.doc
+!*.docx
+
+# We will ignore *.pdb files
+*.pdb
+
+# We will ignore temporary files
+~$*.docx
+~$*.pptx
+~$*.xlsx
+~$*.~vsdx
+~$*.vsdx
+*.bak

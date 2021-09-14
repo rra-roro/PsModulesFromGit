@@ -1,0 +1,75 @@
+################################################################################
+#  Git attributes for cross-platform scripting projects
+################################################################################
+
+# All PowerShell projects is cross-platform from now on.
+# All files, unless otherwise noted, are textual and require platform-specific
+# end of line adjustments.
+# This requires proper git configuration::
+#   !!! on Linux you need to set                      core.autocrlf=input
+#   !!! on Windows you must set                       core.autocrlf=true
+
+################################################################################
+
+# all files, unless otherwise stated, are considered text files
+# (platform-specific end of line)
+*           text
+
+# for true binary files, disable diff and merge
+*.exe       binary
+*.EXE       binary
+*.dll       binary
+*.dll.old   binary
+*.zip       binary
+*.7z        binary
+*.rar       binary
+*.tar       binary
+*.tgz       binary
+*.gz        binary
+*.db        binary
+*.wcx       binary
+*.pdf       binary
+*.doc       binary
+*.docx      binary
+*.pptx      binary
+*.xlsx      binary
+*.vsdx      binary
+*.jpg       binary
+*.gif       binary
+*.bmp       binary
+*.ico       binary
+*.rle       binary
+*.ctt       binary
+*.pfx       binary
+*.pfm       binary
+*.hlp       binary
+*.chm       binary
+
+# seting a text diff for text files
+*.ps1       text diff
+*.psm1      text diff
+*.psd1      text diff
+*.ps1xml    text diff
+*.txt       text diff
+*.sln       text diff
+*.csproj    text diff
+*.vcproj    text diff
+*.cs        text diff
+*.xaml      text diff
+*.h         text diff
+*.ini       text diff
+*.LSP       text diff
+*.rc        text diff
+*.cpp       text diff
+*.tmf       text diff
+*.clixml    text diff
+*.xsl       text diff
+*.xml       text diff
+*.cmd       text diff
+*.csv       text diff
+*.sh        text diff
+*.yml       text diff
+
+# all text files are encoded utf-8,
+# which is the default encoding
+
