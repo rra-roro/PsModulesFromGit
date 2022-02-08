@@ -35,7 +35,6 @@ function Convert-Url()
 
         $githubMatch = [regex]::Match($Url, $githubUriRegex);
     
-        Write-Host "github.com"
         return @{
             SchemeHost = $(GetGroupValue $githubMatch "Scheme") + $(GetGroupValue $githubMatch "Host")
             Host = GetGroupValue $githubMatch "Host" 
