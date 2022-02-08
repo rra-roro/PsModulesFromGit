@@ -1,4 +1,6 @@
 ﻿<#
+  $url = 'https://github.com/rra-roro/PsModulesFromGit/raw/main/install.ps1'
+
   $url = 'https://my-gitlab/my-powershell/PsModulesFromGit/-/raw/main/install.ps1'
 
   iex ("`$url='$url';"+(new-object net.webclient).DownloadString($url))
@@ -27,27 +29,23 @@ function Convert-Url()
 
     if( $(GetGroupValue $githubMatch "Host") -eq "github.com")
     {
-
-        $githubUriRegex = "(?<Scheme>https://)(?<Host>github.com)/(?<User>[^/]*)/(?<Repo>[^/]*)(/tree/(?<Branch>[^/]*)(/(?<Folder>.*))?)?(/archive/(?<Branch>.*).zip)?";
+        # Инсталируемся с github, значит с нашего внутреннего GitLab
+        # https://github.com/rra-roro/PsModulesFromGit/raw/main/install.ps1
+        $githubUriRegex = "(?<Scheme>https://)(?<Host>[^/]+)/(?<User>[^/]+)/(?<Repo>[^/]+)/raw/(?<Branch>[^/]+)/(?<Script>[^/]+)";
 
         $githubMatch = [regex]::Match($Url, $githubUriRegex);
-
-        if ( ! $(GetGroupValue $githubMatch "Host") ) 
-        {
-            throw [System.ArgumentException] "Incorrect 'Host' value. The 'github.com' domain expected";
-            #Write-Error -Message "Incorrect 'Host' value. The 'github.com' domain expected" -Category InvalidArgument
-        }
     
-        return @{ 
+        return @{
+            SchemeHost = $(GetGroupValue $githubMatch "Scheme") + $(GetGroupValue $githubMatch "Host")
+            Host = GetGroupValue $githubMatch "Host" 
             User = GetGroupValue $githubMatch "User"
             Repo = GetGroupValue $githubMatch "Repo"
-            Branch = GetGroupValue $githubMatch "Branch" "master"
-            ModulePath = GetGroupValue $githubMatch "Folder"
+            Branch = GetGroupValue $githubMatch "Branch" "main"
         }
     }
     else
     {   # Инсталируемся не с github, значит с нашего внутреннего GitLab
-        # https://my-gitlab/my-powershell/PsModulesFromGit/-/archive/main/PsModulesFromGit-main.zip
+        # https://my-gitlab/my-powershell/PsModulesFromGit/-/raw/main/install.ps1
 
         $githubUriRegex = "(?<Scheme>https://)(?<Host>[^/]+)/(?<Group>[^/]+)/(?<Repo>[^/]+)/-/raw/(?<Branch>[^/]+)/(?<Script>[^/]+)"
 
@@ -238,10 +236,12 @@ $downloadUrl = ""
 
 if( $URLobj['Host'] -eq "github.com")
 {
-    $downloadUrl = [uri]"https://github.com/${User}/${Repo}/archive/${Branch}.zip";
+    # https://github.com/rra-roro/PsModulesFromGit/archive/refs/heads/main.zip
+    $downloadUrl = [uri]"$($URLobj['SchemeHost'])/$($URLobj['User'])/$($URLobj['Repo'])/archive/refs/heads/$($URLobj['Branch']).zip";
 }
 else
 {
+    # https://my-gitlab/my-powershell/PsModulesFromGit/-/archive/main/PsModulesFromGit-main.zip
     $downloadUrl = [uri]"$($URLobj['SchemeHost'])/$($URLobj['Group'])/$($URLobj['Repo'])/-/archive/$($URLobj['Branch'])/$($URLobj['ModuleName'])-$($URLobj['Branch']).zip"
 }
 
