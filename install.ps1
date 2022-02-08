@@ -1,7 +1,7 @@
 ﻿<#
   $url = 'https://github.com/rra-roro/PsModulesFromGit/raw/main/install.ps1'
 
-  $url = 'https://my-gitlab/my-powershell/PsModulesFromGit/-/raw/main/install.ps1'
+  $url = 'https://192.168.0.251:40000/my-powershell/PsModulesFromGit/-/raw/main/install.ps1'
 
   iex ("`$url='$url';"+(new-object net.webclient).DownloadString($url))
 #>
@@ -162,10 +162,6 @@ function Expand-ModuleZip
 
     Write-Progress -Activity "Module Installation"  -Status "Unpack Module" -PercentComplete 40;
 }
-
-<#
-    https://my-gitlab/my-powershell/PsModulesFromGit/-/archive/main/PsModulesFromGit-main.zip
-#>
 
 function Move-ModuleFiles 
 {
