@@ -3,7 +3,7 @@
 
   $url = 'https://192.168.0.251:40000/my-powershell/PsModulesFromGit/-/raw/main/install.ps1'
 
-  iex ("`$url='$url';"+(new-object net.webclient).DownloadString($url))
+  iex ("`$url='$url';"+(new-object net.webclient).DownloadString($url+"?$([DateTime]::Now.Ticks)"))
 #>
 
 # capture variable values
@@ -170,7 +170,8 @@ function Move-ModuleFiles
         [string] $ArchiveFolder,
         [string] $Module,
         [string] $DestFolder,
-        [string] $ModuleHash
+        [string] $ModuleHash,
+        [string] $SourceURL
     )
     # Extracted zip module from GitHub 
     $path = (Resolve-Path -Path "${ArchiveFolder}\*-master\$Module").Path
@@ -182,6 +183,9 @@ function Move-ModuleFiles
 
     Write-Progress -Activity "Module Installation"  -Status "Store computed moduel hash" -PercentComplete 40;
     Out-File -InputObject $ModuleHash -FilePath "$path\hash" 
+
+    Write-Progress -Activity "Module Installation"  -Status "Store source URL" -PercentComplete 45;
+    Out-File -InputObject $SourceURL -FilePath "$path\SourceURL" 
     
     Write-Progress -Activity "Module Installation"  -Status "Copy Module to PowershellModules folder" -PercentComplete 50;
     Move-Item -Path $path -Destination "$DestFolder"
@@ -250,7 +254,7 @@ $moduleHash = Get-FileHash -Algorithm SHA384 -Path "${tmpArchiveName}.zip"
 
 Expand-ModuleZip -Archive $tmpArchiveName;
 
-Move-ModuleFiles -ArchiveFolder $tmpArchiveName -Module $URLobj['ModuleName'] -DestFolder $moduleFolder -ModuleHash "$($moduleHash.Hash)";
+Move-ModuleFiles -ArchiveFolder $tmpArchiveName -Module $URLobj['ModuleName'] -DestFolder $moduleFolder -ModuleHash "$($moduleHash.Hash)" -SourceURL $downloadUrl;
 Invoke-Cleanup -ArchiveFolder $tmpArchiveName
 
 Write-Finish -moduleName $URLobj['ModuleName']
