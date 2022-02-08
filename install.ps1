@@ -40,6 +40,7 @@ function Convert-Url()
             Host = GetGroupValue $githubMatch "Host" 
             User = GetGroupValue $githubMatch "User"
             Repo = GetGroupValue $githubMatch "Repo"
+            ModuleName = GetGroupValue $githubMatch "Repo"
             Branch = GetGroupValue $githubMatch "Branch" "main"
         }
     }
