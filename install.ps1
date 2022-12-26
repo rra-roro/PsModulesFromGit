@@ -18,7 +18,7 @@
 
   $url = 'https://192.168.0.251:40000/my-powershell/PsModulesFromGit/-/raw/main/install.ps1'
 
-  iex ("`$url='$url';"+(new-object net.webclient).DownloadString($url+"?$([DateTime]::Now.Ticks)"))
+  iex ("`$url='$url';"+(new-object net.webclient).DownloadString($url+"?$([DateTime]::Now.Ticks)") + "; main")
 #>
 
 ###################################################################################################
@@ -144,6 +144,8 @@ function Receive-Module
     )
 
     $client = New-Object System.Net.WebClient;
+
+    # $client.Credentials = new NetworkCredential("username", "password");
     
     try
     {
@@ -263,49 +265,52 @@ function Write-Finish {
 #
 ###################################################################################################
 
-# capture variable values
-[string]$Url = Get-Variable -ValueOnly -ErrorAction SilentlyContinue Url;
-
-$URLobj=@{}
-
-# try convert url to fully cvalified path
-if( -not [string]::IsNullOrWhitespace($Url) )
+function main()
 {
-    $URLobj = Convert-Url -Url $Url
+    # capture variable values
+    [string]$Url = Get-Variable -ValueOnly -ErrorAction SilentlyContinue Url;
+
+    $URLobj=@{}
+
+    # try convert url to fully cvalified path
+    if( -not [string]::IsNullOrWhitespace($Url) )
+    {
+        $URLobj = Convert-Url -Url $Url
+    }
+    else
+    {
+        throw [System.ArgumentException] "Incorrect `$Url variable with '$Url' value.";    
+    }
+
+
+    $host.ui.WriteLine([ConsoleColor]::Green, [ConsoleColor]::Black, "Start downloading Module '$($URLobj['ModuleName'])' from $($URLobj['SchemeHost']) Repository:$($URLobj['Repo']) Branch:$($URLobj['Branch'])")
+
+    $tmpArchiveName = $(Get-LocalTempPath -RepoName $URLobj['Repo']);
+    $moduleFolder = Get-ModuleInstallFolder -ModuleName $URLobj['ModuleName'];
+
+    $downloadUrl = ""
+
+    if( $URLobj['Host'] -eq "github.com")
+    {
+        # https://github.com/rra-roro/PsModulesFromGit/archive/refs/heads/main.zip
+        $downloadUrl = [uri]"$($URLobj['SchemeHost'])/$($URLobj['User'])/$($URLobj['Repo'])/archive/refs/heads/$($URLobj['Branch']).zip";
+    }
+    else
+    {
+        # https://my-gitlab/my-powershell/PsModulesFromGit/-/archive/main/PsModulesFromGit-main.zip
+        $downloadUrl = [uri]"$($URLobj['SchemeHost'])/$($URLobj['Group'])/$($URLobj['Repo'])/-/archive/$($URLobj['Branch'])/$($URLobj['ModuleName'])-$($URLobj['Branch']).zip"
+    }
+
+    Receive-Module -Url $downloadUrl -ToFile "${tmpArchiveName}.zip";
+
+    sleep 5
+
+    $moduleHash = Get-FileHash -Algorithm SHA384 -Path "${tmpArchiveName}.zip"
+
+    Expand-ModuleZip -Archive $tmpArchiveName;
+
+    Move-ModuleFiles -ArchiveFolder $tmpArchiveName -Module $URLobj['ModuleName'] -DestFolder $moduleFolder -ModuleHash "$($moduleHash.Hash)" -SourceURL $downloadUrl;
+    Invoke-Cleanup -ArchiveFolder $tmpArchiveName
+
+    Write-Finish -moduleName $URLobj['ModuleName']
 }
-else
-{
-    throw [System.ArgumentException] "Incorrect `$Url variable with '$Url' value.";    
-}
-
-
-$host.ui.WriteLine([ConsoleColor]::Green, [ConsoleColor]::Black, "Start downloading Module '$($URLobj['ModuleName'])' from $($URLobj['SchemeHost']) Repository:$($URLobj['Repo']) Branch:$($URLobj['Branch'])")
-
-$tmpArchiveName = $(Get-LocalTempPath -RepoName $URLobj['Repo']);
-$moduleFolder = Get-ModuleInstallFolder -ModuleName $URLobj['ModuleName'];
-
-$downloadUrl = ""
-
-if( $URLobj['Host'] -eq "github.com")
-{
-    # https://github.com/rra-roro/PsModulesFromGit/archive/refs/heads/main.zip
-    $downloadUrl = [uri]"$($URLobj['SchemeHost'])/$($URLobj['User'])/$($URLobj['Repo'])/archive/refs/heads/$($URLobj['Branch']).zip";
-}
-else
-{
-    # https://my-gitlab/my-powershell/PsModulesFromGit/-/archive/main/PsModulesFromGit-main.zip
-    $downloadUrl = [uri]"$($URLobj['SchemeHost'])/$($URLobj['Group'])/$($URLobj['Repo'])/-/archive/$($URLobj['Branch'])/$($URLobj['ModuleName'])-$($URLobj['Branch']).zip"
-}
-
-Receive-Module -Url $downloadUrl -ToFile "${tmpArchiveName}.zip";
-
-sleep 5
-
-$moduleHash = Get-FileHash -Algorithm SHA384 -Path "${tmpArchiveName}.zip"
-
-Expand-ModuleZip -Archive $tmpArchiveName;
-
-Move-ModuleFiles -ArchiveFolder $tmpArchiveName -Module $URLobj['ModuleName'] -DestFolder $moduleFolder -ModuleHash "$($moduleHash.Hash)" -SourceURL $downloadUrl;
-Invoke-Cleanup -ArchiveFolder $tmpArchiveName
-
-Write-Finish -moduleName $URLobj['ModuleName']
