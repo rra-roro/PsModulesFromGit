@@ -283,7 +283,11 @@ function main()
     }
 
 
-    $host.ui.WriteLine([ConsoleColor]::Green, [ConsoleColor]::Black, "Start downloading Module '$($URLobj['ModuleName'])' from $($URLobj['SchemeHost']) Repository:$($URLobj['Repo']) Branch:$($URLobj['Branch'])")
+    # $host.ui.WriteLine([ConsoleColor]::Green, [ConsoleColor]::Black, "Start downloading Module '$($URLobj['ModuleName'])' from $($URLobj['SchemeHost']) Repository:$($URLobj['Repo']) Branch:$($URLobj['Branch'])")
+    Write-Host -ForegroundColor Green "`nStart downloading Module '$($URLobj['ModuleName'])' from $($URLobj['SchemeHost'])." 
+    Write-Host -ForegroundColor Green "                  Repository:$($URLobj['Repo'])"
+    Write-Host -ForegroundColor Green "                  Branch:$($URLobj['Branch'])"
+
 
     $tmpArchiveName = $(Get-LocalTempPath -RepoName $URLobj['Repo']);
     $moduleFolder = Get-ModuleInstallFolder -ModuleName $URLobj['ModuleName'];
