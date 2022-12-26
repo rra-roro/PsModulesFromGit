@@ -1,4 +1,19 @@
 ﻿<#
+  install.ps1 - это файл который позволяет установить модуль PsModulesFromGit 
+                (или любой другой модуль, где есть этот install.ps1 файл в папке модуля)
+                из GitHub, локального GitLab, или BitBucket
+   
+  Концепция такая, что мы используем install.ps1 для установки PsModulesFromGit на локальный компьютер, а затем
+  используем PsModulesFromGit для установки любого другого модуля, или обновления мерчии модуля.
+
+  Однако если поместить install.ps1 непосредственно в репозиторий какого-либо иного модуля, то 
+  это скрипт скачает и установит этот модуль
+
+  Для запуска скрипта непосредственно из репозитория, нужно создать переменную $url, 
+  где указать путь к файлу install.ps1, а затем использовать iex псевдоним командлета Invoke-Expression
+
+  Например:
+
   $url = 'https://github.com/rra-roro/PsModulesFromGit/raw/main/install.ps1'
 
   $url = 'https://192.168.0.251:40000/my-powershell/PsModulesFromGit/-/raw/main/install.ps1'
@@ -6,8 +21,12 @@
   iex ("`$url='$url';"+(new-object net.webclient).DownloadString($url+"?$([DateTime]::Now.Ticks)"))
 #>
 
-# capture variable values
-[string]$Url = Get-Variable -ValueOnly -ErrorAction SilentlyContinue Url;
+###################################################################################################
+#
+#  Вспомогательные ф-ии
+#
+###################################################################################################
+
 
 function GetGroupValue($match, [string]$group, [string]$default = "") 
 {
@@ -20,6 +39,12 @@ function GetGroupValue($match, [string]$group, [string]$default = "")
     return $default
 }
 
+<#
+    Конвертируем url в полностью квалифицированный путь
+    Т.е. мы разрезаем url на части. И возвращаем объект с разрезаным URL
+    В ностоящее время, поддерживается  github.com и локальный gitlab
+#>
+
 function Convert-Url()
 {
     param( [string]$Url )
@@ -29,7 +54,7 @@ function Convert-Url()
 
     if( $(GetGroupValue $githubMatch "Host") -eq "github.com")
     {
-        # Инсталируемся с github, значит с нашего внутреннего GitLab
+        # Инсталируемся с github
         # https://github.com/rra-roro/PsModulesFromGit/raw/main/install.ps1
         $githubUriRegex = "(?<Scheme>https://)(?<Host>[^/]+)/(?<User>[^/]+)/(?<Repo>[^/]+)/raw/(?<Branch>[^/]+)/(?<Script>[^/]+)";
 
@@ -64,6 +89,10 @@ function Convert-Url()
     }
 }
 
+<#
+    Get-LocalTempPath - возвращает имя временной папки
+#>
+
 function Get-LocalTempPath 
 {
     param ( [string] $RepoName )
@@ -72,11 +101,19 @@ function Get-LocalTempPath
     return "$tmpDir\$RepoName";
 }
 
+<#
+    Get-ModuleInstallFolder - генерирует имя папки, куда мы будем устанавливать модуль
+#>
+
 function Get-ModuleInstallFolder 
 {
     param ( [string] $ModuleName )
 
     $separator = [IO.Path]::PathSeparator;
+
+    # Возвращаем путь к папке с модулями, например такой путь
+    #               C:\Users\roro\Documents\PowerShell\Modules
+    # Реальный путь  будет зависит от платформы и версии PS
 
     $ProfileModulePath = $env:PSModulePath.Split($separator)[0];
     if (!(Test-Path $ProfileModulePath)) 
@@ -94,6 +131,10 @@ function Get-ModuleInstallFolder
     }
     return $pathToInstal;
 }
+
+<#
+    Receive-Module  - скачиваем файл пока без логина и пароля
+#>
 
 function Receive-Module 
 {
@@ -181,6 +222,8 @@ function Move-ModuleFiles
         $path=(Resolve-Path -Path "${ArchiveFolder}\*-main\").Path
     }
 
+    #gitrepo.info
+
     Write-Progress -Activity "Module Installation"  -Status "Store computed moduel hash" -PercentComplete 40;
     Out-File -InputObject $ModuleHash -FilePath "$path\hash" 
 
@@ -214,6 +257,14 @@ function Write-Finish {
 
 }
 
+###################################################################################################
+#
+#  Основной код скрипта
+#
+###################################################################################################
+
+# capture variable values
+[string]$Url = Get-Variable -ValueOnly -ErrorAction SilentlyContinue Url;
 
 $URLobj=@{}
 
