@@ -1,39 +1,45 @@
-﻿<#
-  install.ps1 - это файл который позволяет установить модуль PsModulesFromGit 
-                (или любой другой модуль, где есть этот install.ps1 файл в папке модуля)
-                из GitHub, локального GitLab, или BitBucket
-   
-  Концепция такая, что мы используем install.ps1 для установки PsModulesFromGit на локальный компьютер, а затем
-  используем PsModulesFromGit для установки любого другого модуля, или обновления мерчии модуля.
+﻿###################################################################################################
+#
+#  Библиотечные ф-ии - используемы install.ps1 для установки PsModulesFromGit, и
+#                      используемы PsModulesFromGit для своей работы
+#
+###################################################################################################
+<#
+  install.ps1 - это скрипт, который содержит:
+                1) ф-ию main() - котороая позволяет установить модуль PsModulesFromGit 
+                   (или любой другой модуль, где есть этот install.ps1 файл в папке модуля)
+                   напрямую из публичного репозитория GitHub, локального GitLab, или BitBucket
+                   Ее описание, инструкцию по использованию и саму ф-ию можно найти в конце файла
 
-  Однако если поместить install.ps1 непосредственно в репозиторий какого-либо иного модуля, то 
-  это скрипт скачает и установит этот модуль.
+                2) Так же этот скрипт содержит библиотечные ф-ии, которые 
+                   используются модулем PsModulesFromGit для загрузки любых PS модулей из
+                   приватных или публичных репозиториев GitHub, локального GitLab, или BitBucket
+                   Для этого модуль PsModulesFromGit импортирует содержимое install.ps1 скрипта
 
-  Для запуска скрипта непосредственно из репозитория, нужно создать переменную $url, 
-  где указать путь к файлу install.ps1, а затем использовать iex псевдоним командлета Invoke-Expression
+  Библиотечные ф-ии позволяют парсить URL модулей из разных публичных и приватных репозиториев, и 
+  загружать из них файлы.
+  
+  Примеры URL для загрузки модулей из различных репозиториев:
+ 
+  1) публичный репозиторий GitHub
+  
+  2) приватный репозиторий GitHub
+     
 
-  Например:
-
-  $url = 'https://github.com/rra-roro/PsModulesFromGit/raw/main/install.ps1'
-
-  $url = 'https://192.168.0.251:40000/my-powershell/PsModulesFromGit/-/raw/main/install.ps1'
-
-  iex ("`$url='$url';"+(new-object net.webclient).DownloadString($url+"?$([DateTime]::Now.Ticks)") + "; main")
+  ---------------------
+     $url = "https://$MyToken@github.com/rra-roro/PsModulesFromGit/raw/main/install.ps1"
+  
+     iex ("`$url='$url';"+($o = [Net.WebClient]::new(); $o.Headers.Add("Authorization", "Bearer $MyToken")).DownloadString($url+"?$([DateTime]::Now.Ticks)") + "; main $MyToken")
+  
 #>
-
-###################################################################################################
-#
-#  Вспомогательные ф-ии
-#
-###################################################################################################
-
 
 function GetGroupValue($match, [string]$group, [string]$default = "") 
 {
-    $val = $match.Groups[$group].Value
-    Write-Debug $val
-    if ($val) 
+    if ($githubMatch.Groups[$group].Success) 
     {
+        $val = $match.Groups[$group].Value
+        Write-Debug $val
+
         return $val
     }
     return $default
@@ -45,18 +51,24 @@ function GetGroupValue($match, [string]$group, [string]$default = "")
     В ностоящее время, поддерживается  github.com и локальный gitlab
 #>
 
-function Convert-Url()
+function Convert-UrlToURLobj
 {
     param( [string]$Url )
     
-    $githubUriRegex = "(?<Scheme>https://)(?<Host>[^/]+)/"
+    #$githubUriRegex = "(?<Scheme>https://)(?<Host>[^/]+)/"
+
+    # token опционален, используем регулярный выражения с промаркированными группами
+    $githubUriRegex = "(?<Scheme>https://)((?<Token>[^@]*)@)?(?<Host>[^/]+)/"
     $githubMatch = [regex]::Match($Url, $githubUriRegex);
 
     if( $(GetGroupValue $githubMatch "Host") -eq "github.com")
     {
         # Инсталируемся с github
         # https://github.com/rra-roro/PsModulesFromGit/raw/main/install.ps1
-        $githubUriRegex = "(?<Scheme>https://)(?<Host>[^/]+)/(?<User>[^/]+)/(?<Repo>[^/]+)/raw/(?<Branch>[^/]+)/(?<Script>[^/]+)";
+        # или
+        # https://token@github.com/rra-roro/PsModulesFromGit/raw/main/install.ps1
+
+        $githubUriRegex = "(?<Scheme>https://)((?<Token>[^@]*)@)?(?<Host>[^/]+)/(?<User>[^/]+)/(?<Repo>[^/]+)/raw/(?<Branch>[^/]+)/(?<Script>[^/]+)";
 
         $githubMatch = [regex]::Match($Url, $githubUriRegex);
     
@@ -67,6 +79,7 @@ function Convert-Url()
             Repo = GetGroupValue $githubMatch "Repo"
             ModuleName = GetGroupValue $githubMatch "Repo"
             Branch = GetGroupValue $githubMatch "Branch" "main"
+            Token = GetGroupValue $githubMatch "Token"
         }
     }
     else
@@ -87,6 +100,109 @@ function Convert-Url()
         }
 
     }
+}
+
+
+function Add-Credentions
+{
+    param( $URLobj, [ref] $WebClient)
+
+    if( $URLobj['Host'] -eq "github.com")
+    {
+        #----- GitHub private repo - token access
+        # https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#download-a-repository-archive-zip
+        # https://stackoverflow.com/questions/8377081/github-api-download-zip-or-tarball-link
+        # https://stackoverflow.com/questions/9159894/download-specific-files-from-github-in-command-line-not-clone-the-entire-repo
+        #
+        # Не работает -> $client.Credentials = new NetworkCredential("username", "password");
+        #
+        # ---- О токенах ----
+        # https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
+        # https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token#creating-a-personal-access-token-classic
+        # https://docs.github.com/en/organizations/managing-programmatic-access-to-your-organization/setting-a-personal-access-token-policy-for-your-organization
+
+        if($URLobj['Token'])
+        {
+            $WebClient.Headers.Add("Accept", "application/vnd.github+json")
+            $WebClient.Headers.Add("Authorization", "Bearer $($URLobj['Token'])")
+            $WebClient.Headers.Add("X-GitHub-Api-Version", "2022-11-28")        
+        }
+    }
+}
+
+function Convert-URLobjToDownloadLink
+{
+    param( $URLobj )
+
+    if( $URLobj['Host'] -eq "github.com")
+    {
+        # https://github.com/rra-roro/PsModulesFromGit/archive/refs/heads/main.zip
+        $downloadUrl = [uri]"$($URLobj['SchemeHost'])/$($URLobj['User'])/$($URLobj['Repo'])/archive/refs/heads/$($URLobj['Branch']).zip";
+    }
+    else
+    {
+        # https://my-gitlab/my-powershell/PsModulesFromGit/-/archive/main/PsModulesFromGit-main.zip
+        $downloadUrl = [uri]"$($URLobj['SchemeHost'])/$($URLobj['Group'])/$($URLobj['Repo'])/-/archive/$($URLobj['Branch'])/$($URLobj['ModuleName'])-$($URLobj['Branch']).zip"
+    }
+
+}
+
+<#
+    Receive-Module  - скачиваем файл пока без логина и пароля
+#>
+
+function Receive-Module 
+{
+    param (
+        $URLobj,
+        [string] $ToFile
+    )
+
+    $client = New-Object System.Net.WebClient;
+
+    Add-Credentions -URLobj $URLobj -WebClient $client
+        
+    try
+    {
+        $progressEventArgs = @{
+                                InputObject = $client
+                                EventName = 'DownloadProgressChanged'
+                                SourceIdentifier = 'ModuleDownload'
+                                Action = {
+                                            Write-Progress -Activity "Module Installation" -Status `
+                                                            ("Downloading Module: {0} of {1}" -f $eventargs.BytesReceived, $eventargs.TotalBytesToReceive) `
+                                                           -PercentComplete $eventargs.ProgressPercentage 
+                                         }
+                               };
+
+        $completeEventArgs = @{
+                                InputObject = $client
+                                EventName = 'DownloadFileCompleted'
+                                SourceIdentifier = 'ModuleDownloadCompleted'
+                              };
+
+        Register-ObjectEvent @progressEventArgs;
+        Register-ObjectEvent @completeEventArgs;
+
+        $downloadUrl = Convert-URLobjToDownloadLink -URLobj $URLobj
+    
+        $client.DownloadFileAsync($downloadUrl, $ToFile);
+
+        Wait-Event -SourceIdentifier ModuleDownloadCompleted;
+    }
+    catch [System.Net.WebException]  
+    {  
+        Write-Host("Cannot download $downloadUrl");
+    } 
+    finally 
+    {
+        $client.dispose();
+        Unregister-Event -SourceIdentifier ModuleDownload;
+        Unregister-Event -SourceIdentifier ModuleDownloadCompleted;
+    }
+
+    Write-Debug "Unblock downloaded file access $ToFile";
+    Unblock-File -Path $ToFile;
 }
 
 <#
@@ -130,62 +246,6 @@ function Get-ModuleInstallFolder
         ";
     }
     return $pathToInstal;
-}
-
-<#
-    Receive-Module  - скачиваем файл пока без логина и пароля
-#>
-
-function Receive-Module 
-{
-    param (
-        [string] $Url,
-        [string] $ToFile
-    )
-
-    $client = New-Object System.Net.WebClient;
-
-    # $client.Credentials = new NetworkCredential("username", "password");
-    
-    try
-    {
-        $progressEventArgs = @{
-                                InputObject = $client
-                                EventName = 'DownloadProgressChanged'
-                                SourceIdentifier = 'ModuleDownload'
-                                Action = {
-                                            Write-Progress -Activity "Module Installation" -Status `
-                                                            ("Downloading Module: {0} of {1}" -f $eventargs.BytesReceived, $eventargs.TotalBytesToReceive) `
-                                                           -PercentComplete $eventargs.ProgressPercentage 
-                                         }
-                               };
-
-        $completeEventArgs = @{
-                                InputObject = $client
-                                EventName = 'DownloadFileCompleted'
-                                SourceIdentifier = 'ModuleDownloadCompleted'
-                              };
-
-        Register-ObjectEvent @progressEventArgs;
-        Register-ObjectEvent @completeEventArgs;
-    
-        $client.DownloadFileAsync($Url, $ToFile);
-
-        Wait-Event -SourceIdentifier ModuleDownloadCompleted;
-    }
-    catch [System.Net.WebException]  
-    {  
-        Write-Host("Cannot download $Url");
-    } 
-    finally 
-    {
-        $client.dispose();
-        Unregister-Event -SourceIdentifier ModuleDownload;
-        Unregister-Event -SourceIdentifier ModuleDownloadCompleted;
-    }
-
-    Write-Debug "Unblock downloaded file access $ToFile";
-    Unblock-File -Path $ToFile;
 }
 
 function Expand-ModuleZip 
@@ -261,9 +321,57 @@ function Write-Finish {
 
 ###################################################################################################
 #
-#  Основной код скрипта
+#  Ф-ия main() - Основной код скрипта install.ps1, устанавливающая модуль PsModulesFromGit
 #
 ###################################################################################################
+<#
+  install.ps1 - это скрипт, который содержит:
+                1) ф-ию main() - котороая позволяет установить модуль PsModulesFromGit  
+                   (или любой другой модуль, где есть этот install.ps1 файл в папке модуля)
+                   напрямую из публичного репозитория GitHub, локального GitLab, или BitBucket
+
+                2) Так же этот скрипт содержит библиотечные ф-ии, которые 
+                   используются модулем PsModulesFromGit для загрузки любых PS модулей из
+                   приватных или публичных репозиториев GitHub, локального GitLab, или BitBucket
+                   Для этого модуль PsModulesFromGit импортирует содержимое install.ps1 скрипта
+                   Описание, билиотечных ф-ий см. в начале файла install.ps1
+   
+  Концепция такая, что мы используем install.ps1 для установки PsModulesFromGit на локальный компьютер, а затем
+  используем PsModulesFromGit для установки любого другого модуля, или обновления версии этого установленного модуля 
+  напрямую из репозитория.
+
+  Примечание: Однако, если поместить install.ps1 непосредственно в публичный репозиторий какого-либо иного модуля, то 
+              это скрипт скачает и установит такой модуль.
+
+  Примечание: мы не можем инсталировать PsModulesFromGit из приватного репозитория с помощью install.ps1 
+              Поскольку для скачивания и запуска install.ps1 из репозитория мы используем выражение iex (т.е. Invoke-Expression),
+              которое не может поддержать использования различных вариантов аутентификации.
+
+              Но после установки PsModulesFromGit, этот модуль может скачивать модули из приватных репозиториев.
+              Например, можно скачать модуль из приватного репозиторий с GitHub используя токен. 
+              Более подробно см. описание PsModulesFromGit
+
+  Для запуска скрипта непосредственно из публичного репозитория, нужно:
+  1) создать переменную $url, где указать путь к файлу install.ps1  
+  2) а затем взять комманду iex, которая является псевдоним командлета Invoke-Expression:
+
+     iex ("`$url='$url';"+([Net.WebClient]::new()).DownloadString($url+"?$([DateTime]::Now.Ticks)") + "; main")
+  
+  скопировать ее вставить в PowerShell и запустить без изменений
+
+  Например, PsModulesFromGit можно установить так:
+
+        Из публичного репозитория GitHub:
+
+            $url = 'https://github.com/rra-roro/PsModulesFromGit/raw/main/install.ps1'
+            iex ("`$url='$url';"+([Net.WebClient]::new()).DownloadString($url+"?$([DateTime]::Now.Ticks)") + "; main")
+
+        Из локального публичного репозитория GitLab:
+
+            $url = 'https://192.168.0.251:40000/my-powershell/PsModulesFromGit/-/raw/main/install.ps1'
+            iex ("`$url='$url';"+([Net.WebClient]::new()).DownloadString($url+"?$([DateTime]::Now.Ticks)") + "; main")
+#>
+
 
 function main()
 {
@@ -272,40 +380,26 @@ function main()
 
     $URLobj=@{}
 
-    # try convert url to fully cvalified path
+    # try parse url to URL object
     if( -not [string]::IsNullOrWhitespace($Url) )
     {
-        $URLobj = Convert-Url -Url $Url
+        $URLobj = Convert-UrlToURLobj -Url $Url
     }
     else
     {
         throw [System.ArgumentException] "Incorrect `$Url variable with '$Url' value.";    
     }
 
-
-    # $host.ui.WriteLine([ConsoleColor]::Green, [ConsoleColor]::Black, "Start downloading Module '$($URLobj['ModuleName'])' from $($URLobj['SchemeHost']) Repository:$($URLobj['Repo']) Branch:$($URLobj['Branch'])")
     Write-Host -ForegroundColor Green "`nStart downloading Module '$($URLobj['ModuleName'])' from $($URLobj['SchemeHost'])." 
-    Write-Host -ForegroundColor Green "                  Repository:$($URLobj['Repo'])"
-    Write-Host -ForegroundColor Green "                  Branch:$($URLobj['Branch'])"
+    Write-Host -ForegroundColor Green "                  Repository: $($URLobj['Repo'])"
+    Write-Host -ForegroundColor Green "                  Branch: $($URLobj['Branch'])"
 
 
     $tmpArchiveName = $(Get-LocalTempPath -RepoName $URLobj['Repo']);
     $moduleFolder = Get-ModuleInstallFolder -ModuleName $URLobj['ModuleName'];
 
-    $downloadUrl = ""
-
-    if( $URLobj['Host'] -eq "github.com")
-    {
-        # https://github.com/rra-roro/PsModulesFromGit/archive/refs/heads/main.zip
-        $downloadUrl = [uri]"$($URLobj['SchemeHost'])/$($URLobj['User'])/$($URLobj['Repo'])/archive/refs/heads/$($URLobj['Branch']).zip";
-    }
-    else
-    {
-        # https://my-gitlab/my-powershell/PsModulesFromGit/-/archive/main/PsModulesFromGit-main.zip
-        $downloadUrl = [uri]"$($URLobj['SchemeHost'])/$($URLobj['Group'])/$($URLobj['Repo'])/-/archive/$($URLobj['Branch'])/$($URLobj['ModuleName'])-$($URLobj['Branch']).zip"
-    }
-
-    Receive-Module -Url $downloadUrl -ToFile "${tmpArchiveName}.zip";
+    # Download module to temporary folder
+    Receive-Module -URLobj $URLobj -ToFile "${tmpArchiveName}.zip";
 
     sleep 5
 
