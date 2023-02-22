@@ -160,7 +160,7 @@ function Receive-Module
 
     $client = New-Object System.Net.WebClient;
 
-    Add-Credentions -URLobj $URLobj -WebClient $client
+    Add-Credentions -URLobj $URLobj -WebClient [ref]$client
         
     try
     {
