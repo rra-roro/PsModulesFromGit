@@ -67,20 +67,32 @@ function Convert-UrlToURLobj
         # https://github.com/rra-roro/PsModulesFromGit/raw/main/install.ps1
         # или
         # https://token@github.com/rra-roro/PsModulesFromGit/raw/main/install.ps1
+        # или
+        # https://token@github.com/rra-roro/PsModulesFromGit/tree/main/Assets
 
-        $githubUriRegex = "(?<Scheme>https://)((?<Token>[^@]*)@)?(?<Host>[^/]+)/(?<User>[^/]+)/(?<Repo>[^/]+)/raw/(?<Branch>[^/]+)/(?<Script>[^/]+)";
+        $githubUriRegex = "(?<Scheme>https://)((?<Token>[^@]*)@)?(?<Host>[^/]+)/(?<User>[^/]+)/(?<Repo>[^/]+)/(?<TypeURL>[^/]+)/(?<Branch>[^/]+)(/(?<ScriptOrModule>[^/]*))?";
 
         $githubMatch = [regex]::Match($Url, $githubUriRegex);
-    
-        return @{
-            SchemeHost = $(GetGroupValue $githubMatch "Scheme") + $(GetGroupValue $githubMatch "Host")
-            Host = GetGroupValue $githubMatch "Host" 
-            User = GetGroupValue $githubMatch "User"
-            Repo = GetGroupValue $githubMatch "Repo"
-            ModuleName = GetGroupValue $githubMatch "Repo"
-            Branch = GetGroupValue $githubMatch "Branch" "main"
-            Token = GetGroupValue $githubMatch "Token"
+
+        $URLObj = @{
+                    SchemeHost = $(GetGroupValue $githubMatch "Scheme") + "api." + $(GetGroupValue $githubMatch "Host")
+                    Host = GetGroupValue $githubMatch "Host" 
+                    Token = GetGroupValue $githubMatch "Token"
+                    User = GetGroupValue $githubMatch "User"
+                    Repo = GetGroupValue $githubMatch "Repo"
+                    Branch = GetGroupValue $githubMatch "Branch" "main"
+                   }
+        if((GetGroupValue $githubMatch "TypeURL") -eq "tree" -and  
+           (GetGroupValue $githubMatch "ScriptOrModule")) 
+        {
+            $URLObj["ModuleName"] = GetGroupValue $githubMatch "ScriptOrModule"               
         }
+        else
+        {
+            $URLObj["ModuleName"] = GetGroupValue $githubMatch "Repo"
+        }
+
+        return $URLObj
     }
     else
     {   # Инсталируемся не с github, значит с нашего внутреннего GitLab
@@ -102,10 +114,27 @@ function Convert-UrlToURLobj
     }
 }
 
+function Convert-URLobjToDownloadLink
+{
+    param( $URLobj )
+
+    if( $URLobj['Host'] -eq "github.com")
+    {
+        # https://github.com/rra-roro/PsModulesFromGit/archive/refs/heads/main.zip
+        # [uri]"$($URLobj['SchemeHost'])/$($URLobj['User'])/$($URLobj['Repo'])/archive/refs/heads/$($URLobj['Branch']).zip";
+        # [uri]"https://api.github.com/repos/rra-roro/TestRepo/zipball"
+        [uri]"$($URLobj['SchemeHost'])/repos/$($URLobj['User'])/$($URLobj['Repo'])/zipball/$($URLobj['Branch'])";
+    }
+    else
+    {
+        # https://my-gitlab/my-powershell/PsModulesFromGit/-/archive/main/PsModulesFromGit-main.zip
+        [uri]"$($URLobj['SchemeHost'])/$($URLobj['Group'])/$($URLobj['Repo'])/-/archive/$($URLobj['Branch'])/$($URLobj['ModuleName'])-$($URLobj['Branch']).zip"
+    }
+}
 
 function Add-Credentions
 {
-    param( $URLobj, [ref] $WebClient)
+    param( $URLobj )
 
     if( $URLobj['Host'] -eq "github.com")
     {
@@ -123,26 +152,8 @@ function Add-Credentions
 
         if($URLobj['Token'])
         {
-            $WebClient.Headers.Add("Accept", "application/vnd.github+json")
-            $WebClient.Headers.Add("Authorization", "Bearer $($URLobj['Token'])")
-            $WebClient.Headers.Add("X-GitHub-Api-Version", "2022-11-28")        
+            '-H', "Accept: application/vnd.github+json", '-H', "Authorization: Bearer $($URLobj['Token'])", '-H', "X-GitHub-Api-Version: 2022-11-28"
         }
-    }
-}
-
-function Convert-URLobjToDownloadLink
-{
-    param( $URLobj )
-
-    if( $URLobj['Host'] -eq "github.com")
-    {
-        # https://github.com/rra-roro/PsModulesFromGit/archive/refs/heads/main.zip
-        [uri]"$($URLobj['SchemeHost'])/$($URLobj['User'])/$($URLobj['Repo'])/archive/refs/heads/$($URLobj['Branch']).zip";
-    }
-    else
-    {
-        # https://my-gitlab/my-powershell/PsModulesFromGit/-/archive/main/PsModulesFromGit-main.zip
-        [uri]"$($URLobj['SchemeHost'])/$($URLobj['Group'])/$($URLobj['Repo'])/-/archive/$($URLobj['Branch'])/$($URLobj['ModuleName'])-$($URLobj['Branch']).zip"
     }
 }
 
@@ -157,48 +168,12 @@ function Receive-Module
         [string] $ToFile
     )
 
-    $client = New-Object System.Net.WebClient;
+    $downloadUrl = Convert-URLobjToDownloadLink -URLobj $URLobj
 
-    Add-Credentions -URLobj $URLobj -WebClient ([ref]$client)
-        
-    try
-    {
-        $progressEventArgs = @{
-                                InputObject = $client
-                                EventName = 'DownloadProgressChanged'
-                                SourceIdentifier = 'ModuleDownload'
-                                Action = {
-                                            Write-Progress -Activity "Module Installation" -Status `
-                                                            ("Downloading Module: {0} of {1}" -f $eventargs.BytesReceived, $eventargs.TotalBytesToReceive) `
-                                                           -PercentComplete $eventargs.ProgressPercentage 
-                                         }
-                               };
-
-        $completeEventArgs = @{
-                                InputObject = $client
-                                EventName = 'DownloadFileCompleted'
-                                SourceIdentifier = 'ModuleDownloadCompleted'
-                              };
-
-        Register-ObjectEvent @progressEventArgs;
-        Register-ObjectEvent @completeEventArgs;
-
-        $downloadUrl = Convert-URLobjToDownloadLink -URLobj $URLobj
+    $AuthInfo = Add-Credentions -URLobj $URLobj
     
-        $client.DownloadFileAsync($downloadUrl, $ToFile);
+    curl @AuthInfo -Lo $ToFile $downloadUrl 
 
-        Wait-Event -SourceIdentifier ModuleDownloadCompleted;
-    }
-    catch [System.Net.WebException]  
-    {  
-        Write-Host("Cannot download $downloadUrl");
-    } 
-    finally 
-    {
-        $client.dispose();
-        Unregister-Event -SourceIdentifier ModuleDownload;
-        Unregister-Event -SourceIdentifier ModuleDownloadCompleted;
-    }
 
     Write-Debug "Unblock downloaded file access $ToFile";
     Unblock-File -Path $ToFile;
@@ -275,12 +250,21 @@ function Move-ModuleFiles
         [string] $ModuleHash,
         [string] $SourceURL
     )
+
     # Extracted zip module from GitHub 
-    $path = (Resolve-Path -Path "${ArchiveFolder}\*-master\$Module").Path
+    $path = (Resolve-Path -Path "${ArchiveFolder}\*-*-*\$Module").Path
     if(!$path)
     {
-        # Extracted zip module from GitLab
-        $path=(Resolve-Path -Path "${ArchiveFolder}\*-main\").Path
+        $path = (Resolve-Path -Path "${ArchiveFolder}\*-*-*\").Path
+        if(!$path)
+        {            
+            # Extracted zip module from GitLab and GitHub
+            $path = (Resolve-Path -Path "${ArchiveFolder}\*-*\$Module").Path 
+            if(!$path)
+            {
+                $path = (Resolve-Path -Path "${ArchiveFolder}\*-*\").Path
+            }
+        }
     }
 
     #gitrepo.info
@@ -316,6 +300,47 @@ function Write-Finish {
 
     Write-Host "Tupe ''Import-Module $moduleName'' to start using module";
 
+}
+
+function lib_main
+{
+    param(
+        [string] $Url
+    )
+
+    $URLobj=@{}
+
+    # try parse url to URL object
+    if( -not [string]::IsNullOrWhitespace($Url) )
+    {
+        $URLobj = Convert-UrlToURLobj -Url $Url
+    }
+    else
+    {
+        throw [System.ArgumentException] "Incorrect `$Url variable with '$Url' value.";    
+    }
+
+    Write-Host -ForegroundColor Green "`nStart downloading Module '$($URLobj['ModuleName'])' from $($URLobj['SchemeHost'])/$($URLobj['User'])" 
+    Write-Host -ForegroundColor Green "                  Repository: $($URLobj['Repo'])"
+    Write-Host -ForegroundColor Green "                  Branch: $($URLobj['Branch'])"
+
+
+    $tmpArchiveName = $(Get-LocalTempPath -RepoName $URLobj['Repo']);
+    $moduleFolder = Get-ModuleInstallFolder -ModuleName $URLobj['ModuleName'];
+
+    # Download module to temporary folder
+    Receive-Module -URLobj $URLobj -ToFile "${tmpArchiveName}.zip";
+
+    sleep 5
+
+    $moduleHash = Get-FileHash -Algorithm SHA384 -Path "${tmpArchiveName}.zip"
+
+    Expand-ModuleZip -Archive $tmpArchiveName;
+
+    Move-ModuleFiles -ArchiveFolder $tmpArchiveName -Module $URLobj['ModuleName'] -DestFolder $moduleFolder -ModuleHash "$($moduleHash.Hash)" -SourceURL $downloadUrl;
+    Invoke-Cleanup -ArchiveFolder $tmpArchiveName
+
+    Write-Finish -moduleName $URLobj['ModuleName']
 }
 
 ###################################################################################################
@@ -377,37 +402,5 @@ function main()
     # capture variable values
     [string]$Url = Get-Variable -ValueOnly -ErrorAction SilentlyContinue Url;
 
-    $URLobj=@{}
-
-    # try parse url to URL object
-    if( -not [string]::IsNullOrWhitespace($Url) )
-    {
-        $URLobj = Convert-UrlToURLobj -Url $Url
-    }
-    else
-    {
-        throw [System.ArgumentException] "Incorrect `$Url variable with '$Url' value.";    
-    }
-
-    Write-Host -ForegroundColor Green "`nStart downloading Module '$($URLobj['ModuleName'])' from $($URLobj['SchemeHost'])." 
-    Write-Host -ForegroundColor Green "                  Repository: $($URLobj['Repo'])"
-    Write-Host -ForegroundColor Green "                  Branch: $($URLobj['Branch'])"
-
-
-    $tmpArchiveName = $(Get-LocalTempPath -RepoName $URLobj['Repo']);
-    $moduleFolder = Get-ModuleInstallFolder -ModuleName $URLobj['ModuleName'];
-
-    # Download module to temporary folder
-    Receive-Module -URLobj $URLobj -ToFile "${tmpArchiveName}.zip";
-
-    sleep 5
-
-    $moduleHash = Get-FileHash -Algorithm SHA384 -Path "${tmpArchiveName}.zip"
-
-    Expand-ModuleZip -Archive $tmpArchiveName;
-
-    Move-ModuleFiles -ArchiveFolder $tmpArchiveName -Module $URLobj['ModuleName'] -DestFolder $moduleFolder -ModuleHash "$($moduleHash.Hash)" -SourceURL $downloadUrl;
-    Invoke-Cleanup -ArchiveFolder $tmpArchiveName
-
-    Write-Finish -moduleName $URLobj['ModuleName']
+    lib_main -Url $Url 
 }
