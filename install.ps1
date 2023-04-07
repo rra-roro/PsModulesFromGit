@@ -324,6 +324,7 @@ function lib_main
     if( -not [string]::IsNullOrWhitespace($Url) )
     {
         $URLobj = Convert-UrlToURLobj -Url $Url
+        $URLobj['OriginalUrl'] = $Url
     }
     else
     {
