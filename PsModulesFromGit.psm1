@@ -69,5 +69,20 @@ function Install-PSModuleGitHub
 
 }
 
+function Update-PSModuleGitHub
+{
+    param (
+        [Parameter(Mandatory=$true, 
+                   HelpMessage = 'Module name')]
+        [Alias("Module")]
+        [string] $ModuleName
+    )
 
-Export-ModuleMember Install-PSModuleGitHub
+    $module = Get-Module PsModulesFromGit -ListAvailable
+    $modulePath = $module.ModuleBase
+
+    $ModuleRepoInfo = Get-Content -LiteralPath $modulePath\ModuleRepoInfo | ConvertFrom-Json
+    $ModuleRepoInfo
+}
+
+Export-ModuleMember Install-PSModuleGitHub,  Update-PSModuleGitHub

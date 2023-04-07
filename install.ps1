@@ -416,4 +416,18 @@ function main()
     [string]$Url = Get-Variable Url -ValueOnly -ErrorAction SilentlyContinue;
 
     lib_main -Url $Url 
+
+    Remove-Item Function:GetGroupValue
+    Remove-Item Function:Convert-UrlToURLobj
+    Remove-Item Function:Convert-URLobjToDownloadLink
+    Remove-Item Function:Add-Credentions
+    Remove-Item Function:Receive-Module
+    Remove-Item Function:Get-LocalTempPath 
+    Remove-Item Function:Expand-ModuleZip
+    Remove-Item Function:Save-ModuleRepoInfo
+    Remove-Item Function:Move-ModuleFiles 
+    Remove-Item Function:Invoke-Cleanup
+    Remove-Item Function:Write-Finish
+    Remove-Item Function:lib_main
+    Remove-Item Function:main 
 }
