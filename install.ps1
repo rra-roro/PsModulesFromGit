@@ -241,6 +241,24 @@ function Expand-ModuleZip
     Write-Progress -Activity "Module Installation"  -Status "Unpack Module" -PercentComplete 40;
 }
 
+function Save-ModuleRepoInfo
+{
+    param (
+        [string] $ModulePath,
+        [string] $ModuleHash,
+        [string] $URLobj
+    )
+
+    $ModuleRepoInfo = new-object psobject -Property @{
+                                                        ModuleName = $URLObj["ModuleName"] 
+                                                        URL=$(Convert-URLobjToDownloadLink -URLobj $URLobj)
+                                                        ModuleHash = $ModuleHash
+                                                        Token = $URLObj["Token"] 
+                                                     }
+
+    $ModuleRepoInfo | ConvertTo-Json -Depth 100 | Out-File -FilePath "$ModulePath\ModuleRepoInfo"
+}
+
 function Move-ModuleFiles 
 {
     param (
@@ -248,7 +266,7 @@ function Move-ModuleFiles
         [string] $Module,
         [string] $DestFolder,
         [string] $ModuleHash,
-        [string] $SourceURL
+        [string] $URLobj
     )
 
     # Extracted zip module from GitHub 
@@ -267,13 +285,8 @@ function Move-ModuleFiles
         }
     }
 
-    #gitrepo.info
-
-    Write-Progress -Activity "Module Installation"  -Status "Store computed moduel hash" -PercentComplete 40;
-    Out-File -InputObject $ModuleHash -FilePath "$path\hash" 
-
-    Write-Progress -Activity "Module Installation"  -Status "Store source URL" -PercentComplete 45;
-    Out-File -InputObject $SourceURL -FilePath "$path\SourceURL" 
+    Write-Progress -Activity "Module Installation"  -Status "Save Module Repo Info" -PercentComplete 40;
+    Save-ModuleRepoInfo -ModulePath $path -ModuleHash $ModuleHash -URLobj $URLobj
     
     Write-Progress -Activity "Module Installation"  -Status "Copy Module to PowershellModules folder" -PercentComplete 50;
     Move-Item -Path $path -Destination "$DestFolder"
@@ -337,7 +350,7 @@ function lib_main
 
     Expand-ModuleZip -Archive $tmpArchiveName;
 
-    Move-ModuleFiles -ArchiveFolder $tmpArchiveName -Module $URLobj['ModuleName'] -DestFolder $moduleFolder -ModuleHash "$($moduleHash.Hash)" -SourceURL $downloadUrl;
+    Move-ModuleFiles -ArchiveFolder $tmpArchiveName -Module $URLobj['ModuleName'] -DestFolder $moduleFolder -ModuleHash "$($moduleHash.Hash)" -URLobj $URLobj;
     Invoke-Cleanup -ArchiveFolder $tmpArchiveName
 
     Write-Finish -moduleName $URLobj['ModuleName']
