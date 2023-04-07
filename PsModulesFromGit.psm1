@@ -101,11 +101,8 @@ function Update-PSModuleGitHub
     Write-Host -ForegroundColor Green "                  Repository: $($URLobj['Repo'])"
     Write-Host -ForegroundColor Green "                  Branch: $($URLobj['Branch'])"
 
-
-    $tmpArchiveName = $(Get-LocalTempPath -RepoName $URLobj['Repo']);
-    $moduleFolder = Get-ModuleInstallFolder -ModuleName $URLobj['ModuleName'];
-
     # Download module to temporary folder
+    $tmpArchiveName = $(Get-LocalTempPath -RepoName $URLobj['Repo']);
     Receive-Module -URLobj $URLobj -ToFile "${tmpArchiveName}.zip";
 
     sleep 5
@@ -114,12 +111,25 @@ function Update-PSModuleGitHub
 
     if($moduleHash -ne $ModuleRepoInfo.ModuleHash)
     {
+
+        if(Test-Path $modulePath)
+        {
+            Rename-Item -Path $modulePath -NewName "_$ModuleName"
+        }
+
+        $moduleFolder = Get-ModuleInstallFolder -ModuleName $URLobj['ModuleName'];
+
         Expand-ModuleZip -Archive $tmpArchiveName;
 
         Move-ModuleFiles -ArchiveFolder $tmpArchiveName -Module $URLobj['ModuleName'] -DestFolder $moduleFolder -ModuleHash "$($moduleHash.Hash)" -URLobj $URLobj;
         Invoke-Cleanup -ArchiveFolder $tmpArchiveName
 
         Write-Finish -moduleName $URLobj['ModuleName']
+
+        if(Test-Path "$modulePath\..\_$ModuleName" )
+        {
+            Remove-Item -Path "$modulePath\..\_$ModuleName" -Recurse -Force
+        }
     }
     else
     {
