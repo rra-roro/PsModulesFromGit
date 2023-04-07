@@ -249,6 +249,8 @@ function Save-ModuleRepoInfo
         [string] $URLobj
     )
 
+    $URLobj | ConvertTo-Json -Depth 100 | Out-Host
+
     $ModuleRepoInfo = new-object psobject -Property @{
                                                         ModuleName = $URLObj["ModuleName"] 
                                                         URL=$(Convert-URLobjToDownloadLink -URLobj $URLobj)
