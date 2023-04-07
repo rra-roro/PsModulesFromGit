@@ -223,6 +223,7 @@ Please rename the exisitng module folder and try again.";
 
 function Expand-ModuleZip 
 {
+    [cmdletBinding()]
     param ( [string] $Archive )
 
     #avoid errors on already existing file
@@ -234,10 +235,13 @@ function Expand-ModuleZip
         Add-Type -AssemblyName System.IO.Compression.FileSystem;
         Write-Debug "Unzip file to floder $Archive";
         [System.IO.Compression.ZipFile]::ExtractToDirectory("${Archive}.zip", "${Archive}");
-    }
-    catch {  }
 
     Write-Progress -Activity "Module Installation"  -Status "Unpack Module" -PercentComplete 40;
+}
+    catch 
+    { 
+        Write-Error -Exception ([Exception]::new("Error extract file ${Archive}.zip: $($_.Exception.Message) ", $_.Exception))     
+    }
 }
 
 function Save-ModuleRepoInfo
@@ -346,12 +350,25 @@ function lib_main
 
     $moduleHash = Get-FileHash -Algorithm SHA384 -Path "${tmpArchiveName}.zip"
 
-    Expand-ModuleZip -Archive $tmpArchiveName;
+    try{
+        Expand-ModuleZip -Archive $tmpArchiveName -ErrorAction Stop
 
     Move-ModuleFiles -ArchiveFolder $tmpArchiveName -Module $URLobj['ModuleName'] -DestFolder $moduleFolder -ModuleHash "$($moduleHash.Hash)" -URLobj $URLobj;
     Invoke-Cleanup -ArchiveFolder $tmpArchiveName
 
     Write-Finish -moduleName $URLobj['ModuleName']
+}
+    catch
+    {
+        if($URLobj['Token'] -eq "")
+        {
+            Write-Error -Exception ([Exception]::new("You are probably downloading a file from a private repository without specifying a token. Set the token and try again.: $($_.Exception.Message) ", $_.Exception))   
+        }
+        else
+        {
+            Write-Error -Exception ([Exception]::new("Bad Archive: $($_.Exception.Message) ", $_.Exception))   
+        }
+    }
 }
 
 ###################################################################################################
