@@ -246,10 +246,8 @@ function Save-ModuleRepoInfo
     param (
         [string] $ModulePath,
         [string] $ModuleHash,
-        [string] $URLobj
+        $URLobj
     )
-
-    $URLobj | ConvertTo-Json -Depth 100 | Out-File -FilePath "$ModulePath\URLOBJ"
 
     $ModuleRepoInfo = new-object psobject -Property @{
                                                         ModuleName = $URLObj["ModuleName"] 
@@ -268,7 +266,7 @@ function Move-ModuleFiles
         [string] $Module,
         [string] $DestFolder,
         [string] $ModuleHash,
-        [string] $URLobj
+        $URLobj
     )
 
     # Extracted zip module from GitHub 
@@ -415,7 +413,7 @@ function lib_main
 function main()
 {
     # capture variable values
-    [string]$Url = Get-Variable -ValueOnly -ErrorAction SilentlyContinue Url;
+    [string]$Url = Get-Variable Url -ValueOnly -ErrorAction SilentlyContinue;
 
     lib_main -Url $Url 
 }
