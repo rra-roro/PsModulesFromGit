@@ -130,6 +130,8 @@ function Update-PSModuleGitHub
         {
             Remove-Item -Path "$modulePath\..\_$ModuleName" -Recurse -Force
         }
+
+        Remove-Module $ModuleName
     }
     else
     {
