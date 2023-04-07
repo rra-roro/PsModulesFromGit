@@ -93,7 +93,9 @@ function Update-PSModuleGitHub
 
     $ModuleRepoInfo = Get-Content -LiteralPath $modulePath\ModuleRepoInfo | ConvertFrom-Json
 
-    $URLobj= $ModuleRepoInfo.URLobj
+
+    $URLobj = @{}
+    $ModuleRepoInfo.URLobj.psobject.properties | Foreach { $URLobj[$_.Name] = $_.Value }
     
     Write-Host -ForegroundColor Green "`nStart downloading Module '$($URLobj['ModuleName'])' from $($URLobj['SchemeHost'])/$($URLobj['User'])" 
     Write-Host -ForegroundColor Green "                  Repository: $($URLobj['Repo'])"
