@@ -1,23 +1,6 @@
 . $PSScriptRoot\install.ps1
 
 <#
-    1) $url = https://github.com/rra-roro/PsModulesFromGit
-       $branch = main
-       $token
-
-    2) $url = https://github.com/rra-roro/PsModulesFromGit
-       $branch = main
-       $module
-       $token
-
-       ||
-
-    4) $url = https://github.com/rra-roro/PsModulesFromGit/tree/main/Assets
-       $token
-
-#>
-
-<#
 .SYNOPSIS
 
 
