@@ -109,7 +109,7 @@ function Update-PSModuleGitHub
 
     $moduleHash = Get-FileHash -Algorithm SHA384 -Path "${tmpArchiveName}.zip"
 
-    if($moduleHash -ne $ModuleRepoInfo.ModuleHash)
+    if($moduleHash.Hash -ne $ModuleRepoInfo.ModuleHash)
     {
 
         if(Test-Path $modulePath)
