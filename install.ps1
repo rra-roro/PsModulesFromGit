@@ -250,10 +250,8 @@ function Save-ModuleRepoInfo
     )
 
     $ModuleRepoInfo = new-object psobject -Property @{
-                                                        ModuleName = $URLObj["ModuleName"] 
-                                                        URL=$(Convert-URLobjToDownloadLink -URLobj $URLobj)
+                                                        URLobj = $URLobj
                                                         ModuleHash = $ModuleHash
-                                                        Token = $URLObj["Token"] 
                                                      }
 
     $ModuleRepoInfo | ConvertTo-Json -Depth 100 | Out-File -FilePath "$ModulePath\ModuleRepoInfo"
@@ -311,7 +309,7 @@ function Write-Finish {
     )
     Write-Host "Module installation complete";
 
-    Write-Host "Tupe ''Import-Module $moduleName'' to start using module";
+    Write-Host "Tupe 'Import-Module $moduleName' to start using module";
 
 }
 
@@ -423,6 +421,7 @@ function main()
     Remove-Item Function:Add-Credentions
     Remove-Item Function:Receive-Module
     Remove-Item Function:Get-LocalTempPath 
+    Remove-Item Function:Get-ModuleInstallFolder
     Remove-Item Function:Expand-ModuleZip
     Remove-Item Function:Save-ModuleRepoInfo
     Remove-Item Function:Move-ModuleFiles 
@@ -431,3 +430,4 @@ function main()
     Remove-Item Function:lib_main
     Remove-Item Function:main 
 }
+

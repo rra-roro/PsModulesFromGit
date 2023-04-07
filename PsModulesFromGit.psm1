@@ -78,11 +78,24 @@ function Update-PSModuleGitHub
         [string] $ModuleName
     )
 
-    $module = Get-Module PsModulesFromGit -ListAvailable
+    $module = Get-Module $ModuleName -ListAvailable
     $modulePath = $module.ModuleBase
 
+    if(-not $module)
+    {
+        throw "'$ModuleName' module not found"
+    }
+
+    if(-not $(Test-Path $modulePath\ModuleRepoInfo) )
+    {
+        throw "'$ModuleName' wasn't installed by PsModulesFromGit"
+    }
+
     $ModuleRepoInfo = Get-Content -LiteralPath $modulePath\ModuleRepoInfo | ConvertFrom-Json
-    $ModuleRepoInfo
+
+    $URLobj= $ModuleRepoInfo.URLobj
+    
+    $URLobj
 }
 
 Export-ModuleMember Install-PSModuleGitHub,  Update-PSModuleGitHub
