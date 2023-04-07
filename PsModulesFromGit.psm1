@@ -95,7 +95,35 @@ function Update-PSModuleGitHub
 
     $URLobj= $ModuleRepoInfo.URLobj
     
-    $URLobj
+    Write-Host -ForegroundColor Green "`nStart downloading Module '$($URLobj['ModuleName'])' from $($URLobj['SchemeHost'])/$($URLobj['User'])" 
+    Write-Host -ForegroundColor Green "                  Repository: $($URLobj['Repo'])"
+    Write-Host -ForegroundColor Green "                  Branch: $($URLobj['Branch'])"
+
+
+    $tmpArchiveName = $(Get-LocalTempPath -RepoName $URLobj['Repo']);
+    $moduleFolder = Get-ModuleInstallFolder -ModuleName $URLobj['ModuleName'];
+
+    # Download module to temporary folder
+    Receive-Module -URLobj $URLobj -ToFile "${tmpArchiveName}.zip";
+
+    sleep 5
+
+    $moduleHash = Get-FileHash -Algorithm SHA384 -Path "${tmpArchiveName}.zip"
+
+    if($moduleHash -ne $ModuleRepoInfo.ModuleHash)
+    {
+        Expand-ModuleZip -Archive $tmpArchiveName;
+
+        Move-ModuleFiles -ArchiveFolder $tmpArchiveName -Module $URLobj['ModuleName'] -DestFolder $moduleFolder -ModuleHash "$($moduleHash.Hash)" -URLobj $URLobj;
+        Invoke-Cleanup -ArchiveFolder $tmpArchiveName
+
+        Write-Finish -moduleName $URLobj['ModuleName']
+    }
+    else
+    {
+        Invoke-Cleanup -ArchiveFolder $tmpArchiveName
+        Write-Host "Module '$ModuleName' didn't change.";
+    }
 }
 
 Export-ModuleMember Install-PSModuleGitHub,  Update-PSModuleGitHub
