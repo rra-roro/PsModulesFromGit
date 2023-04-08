@@ -124,6 +124,7 @@ function Update-PSModuleGitHub
             }
 
             Remove-Module $ModuleName
+            if($ModuleName -eq 'PsModulesFromGit') { Import-Module PsModulesFromGit }
         }
         else
         {
