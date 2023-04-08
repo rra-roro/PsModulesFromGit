@@ -34,7 +34,6 @@ iex ("`$url='$url';"+([Net.WebClient]::new()).DownloadString($url+"?$([DateTime]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
  
-
 Как использовать PsModulesFromGit 
 ----------------------------------
 
@@ -46,23 +45,16 @@ iex ("`$url='$url';"+([Net.WebClient]::new()).DownloadString($url+"?$([DateTime]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Import-Module PsModulesFromGit
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
  
-
 ### Команда установки модулей Install-PSModuleGitHub
 
 Для установки какого либо модуля непосредствено из репозитория GitHub необходимо
 вызвать команду **Install-PSModuleGitHub**  
 
-
->   **Install-PSModuleGitHub** -URL *\<url-module-repo\>  *
-
+>   **Install-PSModuleGitHub** -URL *\<url-module-repo\>*
 >   [-Branch] *\<Repository branch\>*
-
 >   [-ModulePath] *\<Module name (Folder in Repository)\>*
-
->   [-Token]* \<Personal access Token\>*
-
+>   [-Token] *\<Personal access Token\>*
  
 
 Рассмотрим параметры:
@@ -76,8 +68,6 @@ URL задается в формате:
 https://github.com/<user-name>/<repo-name>
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-
-
 **-Branch**
 
 Необязательный параметр задает имя ветки в репозитории из которой будет
@@ -85,15 +75,11 @@ https://github.com/<user-name>/<repo-name>
 
 Если параметр не задан, по умолчанию используется ветка `main`
 
- 
-
 **-ModulePath**
 
 Необязательный параметр. В том случае, если в репозитории, содержатся сразу
 несколько модулей, задает подпапку в которой, находится устанавливаемый модуль,
 относительно корня репозитория.
-
- 
 
 **-Token**
 
@@ -101,7 +87,6 @@ https://github.com/<user-name>/<repo-name>
 репозитория. Более подробно о формате токена и как его получить смотрите [тут
 Private Repo Token](PrivateRepoToken.md).
 
- 
 
 *Примеры:*
 
@@ -116,8 +101,6 @@ Install-PSModuleGitHub -Url https://github.com/dfinke/ImportExcel -Branch master
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Install-PSModuleGitHub -Url https://github.com/rra-roro/TestRepo -Token 'github_pat_.....'
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
- 
 
 ### Команда обновления модулей Update-PSModuleGitHub
 
