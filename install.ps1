@@ -209,9 +209,7 @@ function Receive-Module
 
         $AuthInfo = Add-Credentions -URLobj $URLobj -ErrorAction Stop
     
-        $CurlOutput = curl @AuthInfo -Lo $ToFile $downloadUrl 2>&1
-        $stderr = $CurlOutput | ?{ $_ -is [System.Management.Automation.ErrorRecord] }
-        if($stderr -ne $null) { throw [Exception]::new("Error download by curl: $($stderr.Exception.Message) ", $stderr.Exception) }
+        curl @AuthInfo -Lo $ToFile $downloadUrl
 
         Write-Debug "Unblock downloaded file access $ToFile";
         Unblock-File -Path $ToFile -ErrorAction Stop;
