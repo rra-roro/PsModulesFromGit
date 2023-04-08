@@ -15,6 +15,7 @@ General notes
 #>
 function Install-PSModuleGitHub
 {
+    [cmdletBinding()]
     param (
         [Parameter(Mandatory = $true, 
                    HelpMessage="https://github.com/<user-name>/<repo-name>")]
@@ -33,27 +34,33 @@ function Install-PSModuleGitHub
                    HelpMessage = 'Personal access Token')]
         [string] $Token
     )
-
-    $githubUriRegex = "(?<Scheme>https://)(?<Host>[^/]+)/"
-    $githubMatch = [regex]::Match($Url, $githubUriRegex);
-
-    if( $(GetGroupValue $githubMatch "Host") -ne "github.com")
+    try
     {
-        throw [System.ArgumentException] "Incorrect `$Url argument. It's not GitHub URL."; 
-    }
+        $githubUriRegex = "(?<Scheme>https://)(?<Host>[^/]+)/"
+        $githubMatch = [regex]::Match($Url, $githubUriRegex);
+
+        if( $(GetGroupValue $githubMatch "Host" -ErrorAction Stop) -ne "github.com")
+        {
+            throw [System.ArgumentException] "Incorrect `$Url argument. It's not GitHub URL."; 
+        }
     
-    # $url = https://github.com/rra-roro/PsModulesFromGit/tree/main/Assets
+        # $url = https://github.com/rra-roro/PsModulesFromGit/tree/main/Assets
    
-    $Url += "/tree/$Branch"
-    if($ModulePath) { $Url += "/$ModulePath"} 
-    if($Token) { $Url = $Url -replace "(https://)(.+)","`$1$Token@`$2" }
+        $Url += "/tree/$Branch"
+        if($ModulePath) { $Url += "/$ModulePath"} 
+        if($Token) { $Url = $Url -replace "(https://)(.+)","`$1$Token@`$2" }
 
-    lib_main -Url $Url 
-
+        lib_main -Url $Url 
+    }
+    catch
+    {
+        Write-Error -ErrorRecord $_
+    }
 }
 
 function Update-PSModuleGitHub
 {
+    [cmdletBinding()]
     param (
         [Parameter(Mandatory=$true, 
                    HelpMessage = 'Module name')]
@@ -61,65 +68,72 @@ function Update-PSModuleGitHub
         [string] $ModuleName
     )
 
-    $module = Get-Module $ModuleName -ListAvailable
-    $modulePath = $module.ModuleBase
-
-    if(-not $module)
+    try
     {
-        throw "'$ModuleName' module not found"
-    }
+        $module = Get-Module $ModuleName -ListAvailable -ErrorAction Stop
+        $modulePath = $module.ModuleBase
 
-    if(-not $(Test-Path $modulePath\ModuleRepoInfo) )
-    {
-        throw "'$ModuleName' wasn't installed by PsModulesFromGit"
-    }
+        if(-not $module)
+        {
+            throw "'$ModuleName' module not found"
+        }
 
-    $ModuleRepoInfo = Get-Content -LiteralPath $modulePath\ModuleRepoInfo | ConvertFrom-Json
+        if(-not $(Test-Path $modulePath\ModuleRepoInfo) )
+        {
+            throw "'$ModuleName' wasn't installed by PsModulesFromGit"
+        }
+
+        $ModuleRepoInfo = Get-Content -LiteralPath $modulePath\ModuleRepoInfo  -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
 
 
-    $URLobj = @{}
-    $ModuleRepoInfo.URLobj.psobject.properties | Foreach { $URLobj[$_.Name] = $_.Value }
+        $URLobj = @{}
+        $ModuleRepoInfo.URLobj.psobject.properties | Foreach { $URLobj[$_.Name] = $_.Value }
     
-    Write-Host -ForegroundColor Green "`nStart downloading Module '$($URLobj['ModuleName'])' from $($URLobj['SchemeHost'])/$($URLobj['User'])" 
-    Write-Host -ForegroundColor Green "                  Repository: $($URLobj['Repo'])"
-    Write-Host -ForegroundColor Green "                  Branch: $($URLobj['Branch'])"
+        Write-Host -ForegroundColor Green "`nStart downloading Module '$($URLobj['ModuleName'])' from $($URLobj['SchemeHost'])/$($URLobj['User'])" 
+        Write-Host -ForegroundColor Green "                  Repository: $($URLobj['Repo'])"
+        Write-Host -ForegroundColor Green "                  Branch: $($URLobj['Branch'])"
 
-    # Download module to temporary folder
-    $tmpArchiveName = $(Get-LocalTempPath -RepoName $URLobj['Repo']);
-    Receive-Module -URLobj $URLobj -ToFile "${tmpArchiveName}.zip";
+        # Download module to temporary folder
+        $tmpArchiveName = $(Get-LocalTempPath -RepoName $URLobj['Repo'] -ErrorAction Stop);
+        Receive-Module -URLobj $URLobj -ToFile "${tmpArchiveName}.zip" -ErrorAction Stop;
 
-    sleep 5
+        sleep 5
 
-    $moduleHash = Get-FileHash -Algorithm SHA384 -Path "${tmpArchiveName}.zip"
+        $moduleHash = Get-FileHash -Algorithm SHA384 -Path "${tmpArchiveName}.zip" -ErrorAction Stop
 
-    if($moduleHash.Hash -ne $ModuleRepoInfo.ModuleHash)
-    {
-
-        if(Test-Path $modulePath)
+        if($moduleHash.Hash -ne $ModuleRepoInfo.ModuleHash)
         {
-            Rename-Item -Path $modulePath -NewName "_$ModuleName"
+
+            if(Test-Path $modulePath)
+            {
+                Rename-Item -Path $modulePath -NewName "_$ModuleName" -ErrorAction Stop
+            }
+
+            $moduleFolder = Get-ModuleInstallFolder -ModuleName $URLobj['ModuleName'] -ErrorAction Stop;
+
+            Expand-ModuleZip -Archive $tmpArchiveName -ErrorAction Stop;
+
+            Move-ModuleFiles -ArchiveFolder $tmpArchiveName -Module $URLobj['ModuleName'] -DestFolder $moduleFolder -ModuleHash "$($moduleHash.Hash)" -URLobj $URLobj -ErrorAction Stop;
+            Invoke-Cleanup -ArchiveFolder $tmpArchiveName
+
+            Write-Finish -moduleName $URLobj['ModuleName']
+
+            if(Test-Path "$modulePath\..\_$ModuleName" )
+            {
+                Remove-Item -Path "$modulePath\..\_$ModuleName" -Recurse -Force
+            }
+
+            Remove-Module $ModuleName
         }
-
-        $moduleFolder = Get-ModuleInstallFolder -ModuleName $URLobj['ModuleName'];
-
-        Expand-ModuleZip -Archive $tmpArchiveName;
-
-        Move-ModuleFiles -ArchiveFolder $tmpArchiveName -Module $URLobj['ModuleName'] -DestFolder $moduleFolder -ModuleHash "$($moduleHash.Hash)" -URLobj $URLobj;
-        Invoke-Cleanup -ArchiveFolder $tmpArchiveName
-
-        Write-Finish -moduleName $URLobj['ModuleName']
-
-        if(Test-Path "$modulePath\..\_$ModuleName" )
+        else
         {
-            Remove-Item -Path "$modulePath\..\_$ModuleName" -Recurse -Force
+            Invoke-Cleanup -ArchiveFolder $tmpArchiveName
+            Write-Host "`nModule '$ModuleName' didn't change.";
         }
-
-        Remove-Module $ModuleName
     }
-    else
+    catch
     {
-        Invoke-Cleanup -ArchiveFolder $tmpArchiveName
-        Write-Host "`nModule '$ModuleName' didn't change.";
+        Write-Error -ErrorRecord $_
     }
 }
 

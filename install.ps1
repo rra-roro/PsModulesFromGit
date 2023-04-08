@@ -33,16 +33,26 @@
   
 #>
 
-function GetGroupValue($match, [string]$group, [string]$default = "") 
+function GetGroupValue
 {
-    if ($githubMatch.Groups[$group].Success) 
-    {
-        $val = $match.Groups[$group].Value
-        Write-Debug $val
+    [cmdletBinding()]
+    param($match, [string]$group, [string]$default = "") 
 
-        return $val
+    try
+    {
+        if ($githubMatch.Groups[$group].Success) 
+        {
+            $val = $match.Groups[$group].Value
+            Write-Debug $val
+
+            return $val
+        }
+        return $default
     }
-    return $default
+    catch
+    {
+        Write-Error -Exception ([Exception]::new("Error in GetGroupValue(): $($_.Exception.Message) ", $_.Exception))
+    }
 }
 
 <#
@@ -53,107 +63,131 @@ function GetGroupValue($match, [string]$group, [string]$default = "")
 
 function Convert-UrlToURLobj
 {
+    [cmdletBinding()]
     param( [string]$Url )
-    
-    #$githubUriRegex = "(?<Scheme>https://)(?<Host>[^/]+)/"
 
-    # token опционален, используем регулярный выражения с промаркированными группами
-    $githubUriRegex = "(?<Scheme>https://)((?<Token>[^@]*)@)?(?<Host>[^/]+)/"
-    $githubMatch = [regex]::Match($Url, $githubUriRegex);
+    try
+    {    
+        #$githubUriRegex = "(?<Scheme>https://)(?<Host>[^/]+)/"
 
-    if( $(GetGroupValue $githubMatch "Host") -eq "github.com")
-    {
-        # Инсталируемся с github
-        # https://github.com/rra-roro/PsModulesFromGit/raw/main/install.ps1
-        # или
-        # https://token@github.com/rra-roro/PsModulesFromGit/raw/main/install.ps1
-        # или
-        # https://token@github.com/rra-roro/PsModulesFromGit/tree/main/Assets
-
-        $githubUriRegex = "(?<Scheme>https://)((?<Token>[^@]*)@)?(?<Host>[^/]+)/(?<User>[^/]+)/(?<Repo>[^/]+)/(?<TypeURL>[^/]+)/(?<Branch>[^/]+)(/(?<ScriptOrModule>[^/]*))?";
-
+        # token опционален, используем регулярный выражения с промаркированными группами
+        $githubUriRegex = "(?<Scheme>https://)((?<Token>[^@]*)@)?(?<Host>[^/]+)/"
         $githubMatch = [regex]::Match($Url, $githubUriRegex);
 
-        $URLObj = @{
-                    SchemeHost = $(GetGroupValue $githubMatch "Scheme") + "api." + $(GetGroupValue $githubMatch "Host")
-                    Host = GetGroupValue $githubMatch "Host" 
-                    Token = GetGroupValue $githubMatch "Token"
-                    User = GetGroupValue $githubMatch "User"
-                    Repo = GetGroupValue $githubMatch "Repo"
-                    Branch = GetGroupValue $githubMatch "Branch" "main"
-                   }
-        if((GetGroupValue $githubMatch "TypeURL") -eq "tree" -and  
-           (GetGroupValue $githubMatch "ScriptOrModule")) 
+        if( $(GetGroupValue $githubMatch "Host" -ErrorAction Stop) -eq "github.com")
         {
-            $URLObj["ModuleName"] = GetGroupValue $githubMatch "ScriptOrModule"               
+            # Инсталируемся с github
+            # https://github.com/rra-roro/PsModulesFromGit/raw/main/install.ps1
+            # или
+            # https://token@github.com/rra-roro/PsModulesFromGit/raw/main/install.ps1
+            # или
+            # https://token@github.com/rra-roro/PsModulesFromGit/tree/main/Assets
+
+            $githubUriRegex = "(?<Scheme>https://)((?<Token>[^@]*)@)?(?<Host>[^/]+)/(?<User>[^/]+)/(?<Repo>[^/]+)/(?<TypeURL>[^/]+)/(?<Branch>[^/]+)(/(?<ScriptOrModule>[^/]*))?";
+
+            $githubMatch = [regex]::Match($Url, $githubUriRegex);
+
+            $URLObj = @{
+                        SchemeHost = $(GetGroupValue $githubMatch "Scheme" -ErrorAction Stop) + "api." + $(GetGroupValue $githubMatch "Host" -ErrorAction Stop)
+                        Host = GetGroupValue $githubMatch "Host" -ErrorAction Stop
+                        Token = GetGroupValue $githubMatch "Token" -ErrorAction Stop
+                        User = GetGroupValue $githubMatch "User" -ErrorAction Stop
+                        Repo = GetGroupValue $githubMatch "Repo" -ErrorAction Stop
+                        Branch = GetGroupValue $githubMatch "Branch" "main" -ErrorAction Stop
+                       }
+            if((GetGroupValue $githubMatch "TypeURL" -ErrorAction Stop) -eq "tree" -and  
+               (GetGroupValue $githubMatch "ScriptOrModule" -ErrorAction Stop)) 
+            {
+                $URLObj["ModuleName"] = GetGroupValue $githubMatch "ScriptOrModule" -ErrorAction Stop               
+            }
+            else
+            {
+                $URLObj["ModuleName"] = GetGroupValue $githubMatch "Repo" -ErrorAction Stop
+            }
+
+            return $URLObj
         }
         else
-        {
-            $URLObj["ModuleName"] = GetGroupValue $githubMatch "Repo"
-        }
+        {   # Инсталируемся не с github, значит с нашего внутреннего GitLab
+            # https://my-gitlab/my-powershell/PsModulesFromGit/-/raw/main/install.ps1
 
-        return $URLObj
+            $githubUriRegex = "(?<Scheme>https://)(?<Host>[^/]+)/(?<Group>[^/]+)/(?<Repo>[^/]+)/-/raw/(?<Branch>[^/]+)/(?<Script>[^/]+)"
+
+            $githubMatch = [regex]::Match($Url, $githubUriRegex);
+
+            return @{ 
+                SchemeHost = $(GetGroupValue $githubMatch "Scheme" -ErrorAction Stop) + $(GetGroupValue $githubMatch "Host" -ErrorAction Stop)
+                Host = GetGroupValue $githubMatch "Host" -ErrorAction Stop
+                Group = GetGroupValue $githubMatch "Group" -ErrorAction Stop
+                Repo = GetGroupValue $githubMatch "Repo" -ErrorAction Stop
+                ModuleName = GetGroupValue $githubMatch "Repo" -ErrorAction Stop
+                Branch = GetGroupValue $githubMatch "Branch" "main" -ErrorAction Stop
+            }
+
+        }
     }
-    else
-    {   # Инсталируемся не с github, значит с нашего внутреннего GitLab
-        # https://my-gitlab/my-powershell/PsModulesFromGit/-/raw/main/install.ps1
-
-        $githubUriRegex = "(?<Scheme>https://)(?<Host>[^/]+)/(?<Group>[^/]+)/(?<Repo>[^/]+)/-/raw/(?<Branch>[^/]+)/(?<Script>[^/]+)"
-
-        $githubMatch = [regex]::Match($Url, $githubUriRegex);
-
-        return @{ 
-            SchemeHost = $(GetGroupValue $githubMatch "Scheme") + $(GetGroupValue $githubMatch "Host")
-            Host = GetGroupValue $githubMatch "Host"
-            Group = GetGroupValue $githubMatch "Group"
-            Repo = GetGroupValue $githubMatch "Repo"
-            ModuleName = GetGroupValue $githubMatch "Repo"
-            Branch = GetGroupValue $githubMatch "Branch" "main"
-        }
-
+    catch
+    {
+        Write-Error -Exception ([Exception]::new("Error in Convert-UrlToURLobj(): $($_.Exception.Message) ", $_.Exception))
     }
 }
 
 function Convert-URLobjToDownloadLink
 {
+    [cmdletBinding()]
     param( $URLobj )
 
-    if( $URLobj['Host'] -eq "github.com")
+    try
     {
-        # https://github.com/rra-roro/PsModulesFromGit/archive/refs/heads/main.zip
-        # [uri]"$($URLobj['SchemeHost'])/$($URLobj['User'])/$($URLobj['Repo'])/archive/refs/heads/$($URLobj['Branch']).zip";
-        # [uri]"https://api.github.com/repos/rra-roro/TestRepo/zipball"
-        [uri]"$($URLobj['SchemeHost'])/repos/$($URLobj['User'])/$($URLobj['Repo'])/zipball/$($URLobj['Branch'])";
+        if( $URLobj['Host'] -eq "github.com")
+        {
+            # https://github.com/rra-roro/PsModulesFromGit/archive/refs/heads/main.zip
+            # [uri]"$($URLobj['SchemeHost'])/$($URLobj['User'])/$($URLobj['Repo'])/archive/refs/heads/$($URLobj['Branch']).zip";
+            # [uri]"https://api.github.com/repos/rra-roro/TestRepo/zipball"
+            [uri]"$($URLobj['SchemeHost'])/repos/$($URLobj['User'])/$($URLobj['Repo'])/zipball/$($URLobj['Branch'])";
+        }
+        else
+        {
+            # https://my-gitlab/my-powershell/PsModulesFromGit/-/archive/main/PsModulesFromGit-main.zip
+            [uri]"$($URLobj['SchemeHost'])/$($URLobj['Group'])/$($URLobj['Repo'])/-/archive/$($URLobj['Branch'])/$($URLobj['ModuleName'])-$($URLobj['Branch']).zip"
+        }
     }
-    else
+    catch
     {
-        # https://my-gitlab/my-powershell/PsModulesFromGit/-/archive/main/PsModulesFromGit-main.zip
-        [uri]"$($URLobj['SchemeHost'])/$($URLobj['Group'])/$($URLobj['Repo'])/-/archive/$($URLobj['Branch'])/$($URLobj['ModuleName'])-$($URLobj['Branch']).zip"
+        Write-Error -Exception ([Exception]::new("Error in Convert-URLobjToDownloadLink(): $($_.Exception.Message) ", $_.Exception))    
     }
 }
 
 function Add-Credentions
 {
+    [cmdletBinding()]
     param( $URLobj )
 
-    if( $URLobj['Host'] -eq "github.com")
+    try
     {
-        #----- GitHub private repo - token access
-        # https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#download-a-repository-archive-zip
-        # https://stackoverflow.com/questions/8377081/github-api-download-zip-or-tarball-link
-        # https://stackoverflow.com/questions/9159894/download-specific-files-from-github-in-command-line-not-clone-the-entire-repo
-        #
-        # Не работает -> $client.Credentials = new NetworkCredential("username", "password");
-        #
-        # ---- О токенах ----
-        # https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
-        # https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token#creating-a-personal-access-token-classic
-        # https://docs.github.com/en/organizations/managing-programmatic-access-to-your-organization/setting-a-personal-access-token-policy-for-your-organization
-
-        if($URLobj['Token'])
+        if( $URLobj['Host'] -eq "github.com")
         {
-            '-H', "Accept: application/vnd.github+json", '-H', "Authorization: Bearer $($URLobj['Token'])", '-H', "X-GitHub-Api-Version: 2022-11-28"
+            #----- GitHub private repo - token access
+            # https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#download-a-repository-archive-zip
+            # https://stackoverflow.com/questions/8377081/github-api-download-zip-or-tarball-link
+            # https://stackoverflow.com/questions/9159894/download-specific-files-from-github-in-command-line-not-clone-the-entire-repo
+            #
+            # Не работает -> $client.Credentials = new NetworkCredential("username", "password");
+            #
+            # ---- О токенах ----
+            # https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
+            # https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token#creating-a-personal-access-token-classic
+            # https://docs.github.com/en/organizations/managing-programmatic-access-to-your-organization/setting-a-personal-access-token-policy-for-your-organization
+
+            if($URLobj['Token'])
+            {
+                '-H', "Accept: application/vnd.github+json", '-H', "Authorization: Bearer $($URLobj['Token'])", '-H', "X-GitHub-Api-Version: 2022-11-28"
+            }
         }
+    }
+    catch
+    {
+        Write-Error -Exception ([Exception]::new("Error in Add-Credentions(): $($_.Exception.Message) ", $_.Exception))  
     }
 }
 
@@ -163,20 +197,29 @@ function Add-Credentions
 
 function Receive-Module 
 {
+    [cmdletBinding()]
     param (
         $URLobj,
         [string] $ToFile
     )
 
-    $downloadUrl = Convert-URLobjToDownloadLink -URLobj $URLobj
+    try
+    {
+        $downloadUrl = Convert-URLobjToDownloadLink -URLobj $URLobj -ErrorAction Stop
 
-    $AuthInfo = Add-Credentions -URLobj $URLobj
+        $AuthInfo = Add-Credentions -URLobj $URLobj -ErrorAction Stop
     
-    curl @AuthInfo -Lo $ToFile $downloadUrl 
+        $CurlOutput = curl @AuthInfo -Lo $ToFile $downloadUrl 2>&1
+        $stderr = $CurlOutput | ?{ $_ -is [System.Management.Automation.ErrorRecord] }
+        if($stderr -ne $null) { throw [Exception]::new("Error download by curl: $($stderr.Exception.Message) ", $stderr.Exception) }
 
-
-    Write-Debug "Unblock downloaded file access $ToFile";
-    Unblock-File -Path $ToFile;
+        Write-Debug "Unblock downloaded file access $ToFile";
+        Unblock-File -Path $ToFile -ErrorAction Stop;
+    }
+    catch
+    {
+        Write-Error -Exception ([Exception]::new("Error in Receive-Module(): $($_.Exception.Message) ", $_.Exception))  
+    }
 }
 
 <#
@@ -185,10 +228,18 @@ function Receive-Module
 
 function Get-LocalTempPath 
 {
+    [cmdletBinding()]
     param ( [string] $RepoName )
 
-    $tmpDir = [System.IO.Path]::GetTempPath();
-    return "$tmpDir\$RepoName";
+    try
+    {
+        $tmpDir = [System.IO.Path]::GetTempPath();
+        return "$tmpDir\$RepoName";
+    }
+    catch
+    {
+        Write-Error -Exception ([Exception]::new("Error in Get-LocalTempPath(): $($_.Exception.Message) ", $_.Exception))
+    }
 }
 
 <#
@@ -197,28 +248,36 @@ function Get-LocalTempPath
 
 function Get-ModuleInstallFolder 
 {
+    [cmdletBinding()]
     param ( [string] $ModuleName )
 
-    $separator = [IO.Path]::PathSeparator;
-
-    # Возвращаем путь к папке с модулями, например такой путь
-    #               C:\Users\roro\Documents\PowerShell\Modules
-    # Реальный путь  будет зависит от платформы и версии PS
-
-    $ProfileModulePath = $env:PSModulePath.Split($separator)[0];
-    if (!(Test-Path $ProfileModulePath)) 
+    try
     {
-        New-Item -ItemType Directory -Path $ProfileModulePath;
-    }
+        $separator = [IO.Path]::PathSeparator;
 
-    $pathToInstal = Join-Path $ProfileModulePath $ModuleName;
+        # Возвращаем путь к папке с модулями, например такой путь
+        #               C:\Users\roro\Documents\PowerShell\Modules
+        # Реальный путь  будет зависит от платформы и версии PS
 
-    if (Test-Path $pathToInstal) {
-        throw "Unable to install module ''$ModuleName''.`n 
+        $ProfileModulePath = $env:PSModulePath.Split($separator)[0];
+        if (!(Test-Path $ProfileModulePath)) 
+        {
+            New-Item -ItemType Directory -Path $ProfileModulePath -ErrorAction Stop;
+        }
+
+        $pathToInstal = Join-Path $ProfileModulePath $ModuleName -ErrorAction Stop;
+
+        if (Test-Path $pathToInstal) {
+            throw "Unable to install module ''$ModuleName''.`n
 Directory with the same name alredy exist in the Profile directory ''$ProfileModulePath''.`n
 Please rename the exisitng module folder and try again.";
+        }
+        return $pathToInstal;
     }
-    return $pathToInstal;
+    catch
+    {
+        Write-Error -Exception ([Exception]::new("Error in Get-ModuleInstallFolder(): $($_.Exception.Message) ", $_.Exception))
+    }
 }
 
 function Expand-ModuleZip 
@@ -232,12 +291,12 @@ function Expand-ModuleZip
 
         Write-Progress -Activity "Module Installation"  -Status "Unpack Module" -PercentComplete 0;
         
-        Add-Type -AssemblyName System.IO.Compression.FileSystem;
+        Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction Stop;
         Write-Debug "Unzip file to floder $Archive";
         [System.IO.Compression.ZipFile]::ExtractToDirectory("${Archive}.zip", "${Archive}");
 
-    Write-Progress -Activity "Module Installation"  -Status "Unpack Module" -PercentComplete 40;
-}
+        Write-Progress -Activity "Module Installation"  -Status "Unpack Module" -PercentComplete 40;
+    }
     catch 
     { 
         Write-Error -Exception ([Exception]::new("Error extract file ${Archive}.zip: $($_.Exception.Message) ", $_.Exception))     
@@ -246,22 +305,31 @@ function Expand-ModuleZip
 
 function Save-ModuleRepoInfo
 {
+    [cmdletBinding()]
     param (
         [string] $ModulePath,
         [string] $ModuleHash,
         $URLobj
     )
 
-    $ModuleRepoInfo = new-object psobject -Property @{
-                                                        URLobj = $URLobj
-                                                        ModuleHash = $ModuleHash
-                                                     }
+    try
+    {
+        $ModuleRepoInfo = new-object psobject -Property @{
+                                                            URLobj = $URLobj
+                                                            ModuleHash = $ModuleHash
+                                                         } -ErrorAction Stop
 
-    $ModuleRepoInfo | ConvertTo-Json -Depth 100 | Out-File -FilePath "$ModulePath\ModuleRepoInfo"
+        $ModuleRepoInfo | ConvertTo-Json -Depth 100 -ErrorAction Stop | Out-File -FilePath "$ModulePath\ModuleRepoInfo" -ErrorAction Stop
+    }
+    catch
+    {
+        Write-Error -Exception ([Exception]::new("Error in Save-ModuleRepoInfo(): $($_.Exception.Message) ", $_.Exception)) 
+    }
 }
 
 function Move-ModuleFiles 
 {
+    [cmdletBinding()]    
     param (
         [string] $ArchiveFolder,
         [string] $Module,
@@ -270,33 +338,41 @@ function Move-ModuleFiles
         $URLobj
     )
 
-    # Extracted zip module from GitHub 
-    $path = (Resolve-Path -Path "${ArchiveFolder}\*-*-*\$Module").Path
-    if(!$path)
+    try
     {
-        $path = (Resolve-Path -Path "${ArchiveFolder}\*-*-*\").Path
+        # Extracted zip module from GitHub 
+        $path = (Resolve-Path -Path "${ArchiveFolder}\*-*-*\$Module").Path 
         if(!$path)
-        {            
-            # Extracted zip module from GitLab and GitHub
-            $path = (Resolve-Path -Path "${ArchiveFolder}\*-*\$Module").Path 
+        {
+            $path = (Resolve-Path -Path "${ArchiveFolder}\*-*-*\").Path
             if(!$path)
-            {
-                $path = (Resolve-Path -Path "${ArchiveFolder}\*-*\").Path
+            {            
+                # Extracted zip module from GitLab and GitHub
+                $path = (Resolve-Path -Path "${ArchiveFolder}\*-*\$Module").Path 
+                if(!$path)
+                {
+                    $path = (Resolve-Path -Path "${ArchiveFolder}\*-*\").Path
+                }
             }
         }
-    }
 
-    Write-Progress -Activity "Module Installation"  -Status "Save Module Repo Info" -PercentComplete 40;
-    Save-ModuleRepoInfo -ModulePath $path -ModuleHash $ModuleHash -URLobj $URLobj
+        Write-Progress -Activity "Module Installation"  -Status "Save Module Repo Info" -PercentComplete 40;
+        Save-ModuleRepoInfo -ModulePath $path -ModuleHash $ModuleHash -URLobj $URLobj -ErrorAction Stop
     
-    Write-Progress -Activity "Module Installation"  -Status "Copy Module to PowershellModules folder" -PercentComplete 50;
-    Move-Item -Path $path -Destination "$DestFolder"
-    Remove-Item "$DestFolder\.gitattributes" -ErrorAction SilentlyContinue;
-    Remove-Item "$DestFolder\.gitignore" -ErrorAction SilentlyContinue;
-    Write-Progress -Activity "Module Installation"  -Status "Copy Module to PowershellModules folder" -PercentComplete 60;
+        Write-Progress -Activity "Module Installation"  -Status "Copy Module to PowershellModules folder" -PercentComplete 50;
+        Move-Item -Path $path -Destination "$DestFolder" -ErrorAction Stop
+        Remove-Item "$DestFolder\.gitattributes" -ErrorAction SilentlyContinue;
+        Remove-Item "$DestFolder\.gitignore" -ErrorAction SilentlyContinue;
+        Write-Progress -Activity "Module Installation"  -Status "Copy Module to PowershellModules folder" -PercentComplete 60;
+    }
+    catch
+    {
+        Write-Error -Exception ([Exception]::new("Error in Move-ModuleFiles(): $($_.Exception.Message) ", $_.Exception)) 
+    }
 }
 
-function Invoke-Cleanup{
+function Invoke-Cleanup
+{
     param (
         [string] $ArchiveFolder
     )
@@ -318,56 +394,64 @@ function Write-Finish {
 
 function lib_main
 {
+    [cmdletBinding()]    
     param(
         [string] $Url
     )
-
-    $URLobj=@{}
-
-    # try parse url to URL object
-    if( -not [string]::IsNullOrWhitespace($Url) )
+    try
     {
-        $URLobj = Convert-UrlToURLobj -Url $Url
-        $URLobj['OriginalUrl'] = $Url
-    }
-    else
-    {
-        throw [System.ArgumentException] "Incorrect `$Url variable with '$Url' value.";    
-    }
+        $URLobj=@{}
 
-    Write-Host -ForegroundColor Green "`nStart downloading Module '$($URLobj['ModuleName'])' from $($URLobj['SchemeHost'])/$($URLobj['User'])" 
-    Write-Host -ForegroundColor Green "                  Repository: $($URLobj['Repo'])"
-    Write-Host -ForegroundColor Green "                  Branch: $($URLobj['Branch'])"
-
-
-    $tmpArchiveName = $(Get-LocalTempPath -RepoName $URLobj['Repo']);
-    $moduleFolder = Get-ModuleInstallFolder -ModuleName $URLobj['ModuleName'];
-
-    # Download module to temporary folder
-    Receive-Module -URLobj $URLobj -ToFile "${tmpArchiveName}.zip";
-
-    sleep 5
-
-    $moduleHash = Get-FileHash -Algorithm SHA384 -Path "${tmpArchiveName}.zip"
-
-    try{
-        Expand-ModuleZip -Archive $tmpArchiveName -ErrorAction Stop
-
-    Move-ModuleFiles -ArchiveFolder $tmpArchiveName -Module $URLobj['ModuleName'] -DestFolder $moduleFolder -ModuleHash "$($moduleHash.Hash)" -URLobj $URLobj;
-    Invoke-Cleanup -ArchiveFolder $tmpArchiveName
-
-    Write-Finish -moduleName $URLobj['ModuleName']
-}
-    catch
-    {
-        if($URLobj['Token'] -eq "")
+        # try parse url to URL object
+        if( -not [string]::IsNullOrWhitespace($Url) )
         {
-            Write-Error -Exception ([Exception]::new("You are probably downloading a file from a private repository without specifying a token. Set the token and try again.: $($_.Exception.Message) ", $_.Exception))   
+            $URLobj = Convert-UrlToURLobj -Url $Url -ErrorAction Stop
+            $URLobj['OriginalUrl'] = $Url
         }
         else
         {
-            Write-Error -Exception ([Exception]::new("Bad Archive: $($_.Exception.Message) ", $_.Exception))   
+            throw [System.ArgumentException] "Incorrect `$Url variable with '$Url' value.";    
         }
+
+        Write-Host -ForegroundColor Green "`nStart downloading Module '$($URLobj['ModuleName'])' from $($URLobj['SchemeHost'])/$($URLobj['User'])" 
+        Write-Host -ForegroundColor Green "                  Repository: $($URLobj['Repo'])"
+        Write-Host -ForegroundColor Green "                  Branch: $($URLobj['Branch'])"
+
+
+        $tmpArchiveName = $(Get-LocalTempPath -RepoName $URLobj['Repo'] -ErrorAction Stop);
+        $moduleFolder = Get-ModuleInstallFolder -ModuleName $URLobj['ModuleName'] -ErrorAction Stop;
+
+        # Download module to temporary folder
+        Receive-Module -URLobj $URLobj -ToFile "${tmpArchiveName}.zip" -ErrorAction Stop;
+
+        sleep 5
+
+        $moduleHash = Get-FileHash -Algorithm SHA384 -Path "${tmpArchiveName}.zip" -ErrorAction Stop
+
+        try
+        {
+            Expand-ModuleZip -Archive $tmpArchiveName -ErrorAction Stop
+
+            Move-ModuleFiles -ArchiveFolder $tmpArchiveName -Module $URLobj['ModuleName'] -DestFolder $moduleFolder -ModuleHash "$($moduleHash.Hash)" -URLobj $URLobj -ErrorAction Stop;
+            Invoke-Cleanup -ArchiveFolder $tmpArchiveName
+
+            Write-Finish -moduleName $URLobj['ModuleName']
+        }
+        catch
+        {
+            if($URLobj['Token'] -eq "")
+            {
+                throw [Exception]::new("You are probably downloading a file from a private repository without specifying a token. Set the token and try again: $($stderr.Exception.Message) ", $stderr.Exception)
+            }
+            else
+            {
+                throw [Exception]::new("Bad Archive: $($stderr.Exception.Message) ", $stderr.Exception)
+            }
+        }
+    }
+    catch
+    {
+        Write-Error -Exception ([Exception]::new("Error in lib_main(): $($_.Exception.Message) ", $_.Exception))
     }
 }
 
