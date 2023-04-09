@@ -263,14 +263,14 @@ function Get-ModuleInstallFolder
             New-Item -ItemType Directory -Path $ProfileModulePath -ErrorAction Stop;
         }
 
-        $pathToInstal = Join-Path $ProfileModulePath $ModuleName -ErrorAction Stop;
+        $pathToInstall = Join-Path $ProfileModulePath $ModuleName -ErrorAction Stop;
 
-        if (Test-Path $pathToInstal) {
+        if (Test-Path $pathToInstall -ErrorAction SilentlyContinue) {
             throw "Unable to install module ''$ModuleName''.`n
 Directory with the same name alredy exist in the Profile directory ''$ProfileModulePath''.`n
 Please rename the exisitng module folder and try again.";
         }
-        return $pathToInstal;
+        return $pathToInstall;
     }
     catch
     {
