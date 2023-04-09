@@ -65,7 +65,12 @@ function Update-PSModuleGitHub
         [Parameter(Mandatory=$true, 
                    HelpMessage = 'Module name')]
         [Alias("Module")]
-        [string] $ModuleName
+        [string] $ModuleName,
+
+        [Parameter(Mandatory=$false, 
+                   HelpMessage = 'Forced module reinstallation')]
+        [Alias("Module")]
+        [switch] $Force
     )
 
     try
@@ -101,7 +106,7 @@ function Update-PSModuleGitHub
 
         $moduleHash = Get-FileHash -Algorithm SHA384 -Path "${tmpArchiveName}.zip" -ErrorAction Stop
 
-        if($moduleHash.Hash -ne $ModuleRepoInfo.ModuleHash)
+        if($moduleHash.Hash -ne $ModuleRepoInfo.ModuleHash -or $Force)
         {
 
             if(Test-Path $modulePath)
