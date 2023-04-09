@@ -18,8 +18,15 @@ function Install-PSModuleGitHub
     [cmdletBinding()]
     param (
         [Parameter(Mandatory = $true, 
-                   HelpMessage="https://github.com/<user-name>/<repo-name>")]
+                   HelpMessage="https://github.com/<user-name>/<repo-name>",
+                   ParameterSetName="Url")]
         [string]$Url,    
+
+        [Parameter(Mandatory = $true, 
+                   HelpMessage="Returned Find-Module Object ",
+                   ParameterSetName="ProjectUri",
+                   ValueFromPipelineByPropertyName)]
+        [string]$ProjectUri,    
 
         [Parameter(Mandatory = $false, 
                    HelpMessage = 'Repository branch')]
@@ -34,27 +41,46 @@ function Install-PSModuleGitHub
                    HelpMessage = 'Personal access Token')]
         [string] $Token
     )
-    try
-    {
-        $githubUriRegex = "(?<Scheme>https://)(?<Host>[^/]+)/"
-        $githubMatch = [regex]::Match($Url, $githubUriRegex);
 
-        if( $(GetGroupValue $githubMatch "Host" -ErrorAction Stop) -ne "github.com")
+    Process 
+    {
+        try
         {
-            throw [System.ArgumentException] "Incorrect `$Url argument. It's not GitHub URL."; 
-        }
-    
-        # $url = https://github.com/rra-roro/PsModulesFromGit/tree/main/Assets
-   
-        $Url += "/tree/$Branch"
-        if($ModulePath) { $Url += "/$ModulePath"} 
-        if($Token) { $Url = $Url -replace "(https://)(.+)","`$1$Token@`$2" }
+            if($PSBoundParameters.ContainsKey("ProjectUri"))
+            {
+                $Url = $null
+                if($ProjectUri.OriginalString.StartsWith("https://github.com"))
+                {
+                    $Url = $ProjectUri.AbsolutePath
+                } 
+                else 
+                {
+                    $name = $ProjectUri.LocalPath.split('/')[-1]
+                    throw [Exception]::new("Module [$name]: not installed, it is not hosted on GitHub.")
+                }
+            }
 
-        lib_main -Url $Url 
-    }
-    catch
-    {
-        Write-Error -ErrorRecord $_
+            $githubUriRegex = "(?<Scheme>https://)(?<Host>[^/]+)/"
+            $githubMatch = [regex]::Match($Url, $githubUriRegex);
+
+            if( $(GetGroupValue $githubMatch "Host" -ErrorAction Stop) -ne "github.com")
+            {
+                throw [System.ArgumentException] "Incorrect `$Url argument. It's not GitHub URL."; 
+            }
+    
+            # $url = https://github.com/rra-roro/PsModulesFromGit/tree/main/Assets
+   
+            $Url += "/tree/$Branch"
+            if($ModulePath) { $Url += "/$ModulePath"} 
+            if($Token) { $Url = $Url -replace "(https://)(.+)","`$1$Token@`$2" }
+
+            lib_main -Url $Url 
+
+        }
+        catch
+        {
+            Write-Error -ErrorRecord $_
+        }
     }
 }
 
