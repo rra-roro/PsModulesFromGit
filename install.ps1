@@ -439,11 +439,11 @@ function lib_main
         {
             if($URLobj['Token'] -eq "")
             {
-                throw [Exception]::new("You are probably downloading a file from a private repository without specifying a token. Set the token and try again: $($stderr.Exception.Message) ", $stderr.Exception)
+                throw [Exception]::new("You are probably downloading a file from a private repository without specifying a token. Set the token and try again: $($_.Exception.Message) ", $_.Exception)
             }
             else
             {
-                throw [Exception]::new("Bad Archive: $($stderr.Exception.Message) ", $stderr.Exception)
+                throw [Exception]::new("Bad Archive: $($_.Exception.Message) ", $_.Exception)
             }
         }
     }
