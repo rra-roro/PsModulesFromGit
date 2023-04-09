@@ -95,7 +95,6 @@ function Update-PSModuleGitHub
 
         [Parameter(Mandatory=$false, 
                    HelpMessage = 'Forced module reinstallation')]
-        [Alias("Module")]
         [switch] $Force
     )
 
