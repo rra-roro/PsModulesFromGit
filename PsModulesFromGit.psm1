@@ -19,14 +19,14 @@ function Install-PSModuleGitHub
     param (
         [Parameter(Mandatory = $true, 
                    HelpMessage="https://github.com/<user-name>/<repo-name>",
-                   ParameterSetName="Url")]
+                   ParameterSetName="WithUrl")]
         [string]$Url,    
 
         [Parameter(Mandatory = $true, 
                    HelpMessage="Returned Find-Module Object ",
-                   ParameterSetName="ProjectUri",
+                   ParameterSetName="WithProjectUri",
                    ValueFromPipelineByPropertyName)]
-        [string]$ProjectUri,    
+        [Uri]$ProjectUri,    
 
         [Parameter(Mandatory = $false, 
                    HelpMessage = 'Repository branch')]
@@ -51,7 +51,7 @@ function Install-PSModuleGitHub
                 $Url = $null
                 if($ProjectUri.OriginalString.StartsWith("https://github.com"))
                 {
-                    $Url = $ProjectUri.AbsolutePath
+                    $Url = $ProjectUri.AbsoluteUri
                 } 
                 else 
                 {
