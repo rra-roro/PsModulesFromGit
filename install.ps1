@@ -388,6 +388,7 @@ function Write-Finish {
 
     Write-Host "Tupe 'Import-Module $moduleName' to start using module";
 
+    Write-Progress -Activity "Module Installation" -Completed;
 }
 
 function lib_main

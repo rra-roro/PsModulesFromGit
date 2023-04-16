@@ -159,7 +159,9 @@ function Update-PSModuleGitHub
         else
         {
             Invoke-Cleanup -ArchiveFolder $tmpArchiveName
+
             Write-Host "`nModule '$ModuleName' didn't change.";
+            Write-Progress -Activity "Module Installation" -Completed;
         }
     }
     catch
