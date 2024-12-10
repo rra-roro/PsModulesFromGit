@@ -170,4 +170,17 @@ function Update-PSModuleGitHub
     }
 }
 
-Export-ModuleMember Install-PSModuleGitHub,  Update-PSModuleGitHub
+
+<#
+    .SYNOPSIS
+        Return list of all command exported form PsModulesFromGit module
+#>
+function Get-PsModulesFromGit
+{
+    Write-Output ""
+    (Get-Module PsModulesFromGit).ExportedCommands.Keys | ?{$_ -ne "Get-PsModulesFromGit" }
+    Write-Output ""
+}
+
+
+Export-ModuleMember Get-PsModulesFromGit, Install-PSModuleGitHub, Update-PSModuleGitHub
