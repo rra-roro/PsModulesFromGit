@@ -232,7 +232,7 @@ function Get-LocalTempPath
     try
     {
         $tmpDir = [System.IO.Path]::GetTempPath();
-        return "$tmpDir\$RepoName";
+        return "$tmpDir/$RepoName";
     }
     catch
     {

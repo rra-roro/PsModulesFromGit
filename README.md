@@ -31,7 +31,7 @@ $url = 'https://github.com/rra-roro/PsModulesFromGit/raw/main/install.ps1'
     его, и скрипт `install.ps1` установить модуль **PsModulesFromGit**
 
 ```powershell
-iex ("`$url='$url';"+([Net.WebClient]::new()).DownloadString($url+"?$([DateTime]::Now.Ticks)") + "; main"):
+iex ("`$url='$url';"+([Net.WebClient]::new()).DownloadString($url+"?$([DateTime]::Now.Ticks)") + "; main")
 ```
 
 Как использовать PsModulesFromGit 
