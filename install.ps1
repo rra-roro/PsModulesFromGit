@@ -211,8 +211,12 @@ function Receive-Module
     
         curl @AuthInfo -Lo $ToFile $downloadUrl
 
-        Write-Debug "Unblock downloaded file access $ToFile";
-        Unblock-File -Path $ToFile -ErrorAction Stop;
+        
+        if($isWindows) 
+        { 
+            Write-Debug "Unblock downloaded file access $ToFile";
+            Unblock-File -Path $ToFile -ErrorAction Stop; 
+        }
     }
     catch
     {
